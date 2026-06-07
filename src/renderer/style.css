@@ -1,0 +1,244 @@
+:root {
+  --bg-color: rgba(20, 20, 25, 0.75);
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.4);
+  --accent-color: #6366f1;
+  --accent-hover: #818cf8;
+  --today-bg: linear-gradient(135deg, #6366f1, #a855f7);
+  --holiday-color: #ff4757; /* Bright red for holidays/weekends */
+  --work-color: #ffffff; /* Normal color for work days */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+body {
+  background: transparent;
+  color: var(--text-primary);
+  overflow: hidden; /* Prevent scrollbars */
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-container {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-color);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.title-bar {
+  height: 35px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 10px;
+}
+
+.drag-region {
+  flex-grow: 1;
+  height: 100%;
+  -webkit-app-region: drag; 
+}
+
+.close-btn {
+  -webkit-app-region: no-drag;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 20px;
+  cursor: pointer;
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 69, 58, 0.2);
+  color: #ff453a;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0px 20px 10px;
+}
+
+.header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 600;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.toggle-week-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-week-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.nav-btn {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.nav-btn:hover {
+  background: var(--accent-color);
+  transform: scale(1.05);
+}
+
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 0 15px 10px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  padding: 0 15px 15px;
+  flex-grow: 1;
+}
+
+.day {
+  background: var(--glass-bg);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  cursor: default;
+  position: relative;
+}
+
+.day:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--glass-border);
+}
+
+.day .date-num {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Off-month days (Dimmed) */
+.day.off-month {
+  opacity: 0.3;
+}
+
+/* Holidays and Weekends */
+.day.is-holiday .date-num {
+  color: var(--holiday-color);
+  font-weight: 700;
+}
+
+.day.is-workday .date-num {
+  color: var(--work-color);
+}
+
+.holiday-text {
+  font-size: 9px;
+  color: var(--holiday-color);
+  margin-top: 1px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.work-text {
+  font-size: 9px;
+  color: var(--accent-color);
+  margin-top: 1px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.day.today {
+  background: var(--today-bg);
+  border: none;
+  box-shadow: 0 2px 10px rgba(168, 85, 247, 0.4);
+}
+
+.day.today .date-num {
+  color: #fff; /* Always white for today */
+}
+
+/* Footer Styles */
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px 15px;
+  border-top: 1px solid var(--glass-border);
+  margin-top: auto;
+}
+
+.clock {
+  font-size: 16px;
+  font-weight: 300;
+  letter-spacing: 1px;
+}
+
+.today-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.3s ease;
+}
+
+.today-btn:hover {
+  background: var(--accent-color);
+}
