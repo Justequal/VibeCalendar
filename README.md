@@ -46,7 +46,8 @@ npm start
 | `npm run pack` | 生成未安装的应用目录 |
 | `npm run build` | 在 `dist/` 生成平台安装包 |
 
-CI 使用 `npm ci`、执行验证后再构建 Windows 安装包。
+CI 分为快速验证和 Windows 打包两层：Pull Request 只执行语法检查与单元测试；合并到
+`main` 后才构建可供冒烟测试的 Windows 安装包。
 
 ## 目录结构
 
@@ -116,8 +117,16 @@ git push origin main --follow-tags
 
 推送 `v*.*.*` 标签后，Actions 会先验证和测试源码，再构建 Windows NSIS 安装包，
 并创建公开 GitHub Release。Release 中的安装包、`latest.yml` 和 blockmap 文件共同
-支持应用内的自动检查与后台差分下载。普通分支和 Pull Request 只执行验证与构建，
-不会发布 Release。
+支持应用内的自动检查与后台差分下载。普通开发不会发布 Release：Pull Request 只做
+快速验证；`main` 会额外生成用于冒烟测试的短期构建产物。完整流程与版本选择参见
+[发布指南](docs/RELEASING.md)。
+
+## 开发与分支
+
+项目采用轻量主干开发：`main` 是唯一长期分支，功能和修复从短期 `feat/*`、`fix/*`
+分支通过 Pull Request 合并。当前规模不维护长期 `develop` 分支，以避免额外的同步和
+回合并成本。具体约定参见 [贡献指南](CONTRIBUTING.md)，版本变化记录在
+[CHANGELOG](CHANGELOG.md)。
 
 ## 打包
 

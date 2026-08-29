@@ -43,8 +43,36 @@ jobs:
     - name: Verify source
       run: npm run verify
 
-    - name: Build and publish GitHub Release
-      run: npm run build -- --publish always
+    - name: Build release assets
+      run: npm run build -- --publish never
+
+    - name: Create GitHub Release and upload assets
+      shell: pwsh
+      run: |
+        $assets = Get-ChildItem dist -File | Where-Object {
+          $_.Extension -in '.exe', '.blockmap' -or $_.Name -eq 'latest.yml'
+        }
+
+        if ($assets.Count -lt 3) {
+          throw "Expected installer, blockmap, and latest.yml in dist"
+        }
+
+        gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" *> $null
+        if ($LASTEXITCODE -ne 0) {
+          gh release create "${{ github.ref_name }}" `
+            --repo "${{ github.repository }}" `
+            --verify-tag `
+            --title "Vibe Calendar ${{ github.ref_name }}" `
+            --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw "Unable to create GitHub Release" }
+        }
+
+        foreach ($asset in $assets) {
+          gh release upload "${{ github.ref_name }}" $asset.FullName `
+            --repo "${{ github.repository }}" `
+            --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Unable to upload $($asset.Name)" }
+        }
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -57,3 +85,4 @@ jobs:
           dist/*.blockmap
           dist/latest.yml
         if-no-files-found: error
+        retention-days: 14
