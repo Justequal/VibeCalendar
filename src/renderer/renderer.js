@@ -1,179 +1,190 @@
-const monthYearElement = document.getElementById('month-year');
-const calendarGrid = document.getElementById('calendar-grid');
-const weekdaysContainer = document.getElementById('weekdays-container');
-const prevBtn = document.getElementById('prev-month');
-const nextBtn = document.getElementById('next-month');
-const closeBtn = document.getElementById('close-btn');
-const clockElement = document.getElementById('clock');
-const goTodayBtn = document.getElementById('go-today-btn');
-const toggleWeekBtn = document.getElementById('toggle-week-btn');
-
-let currentDate = new Date();
-let startOnMonday = false;
-
-function renderWeekdays() {
-  weekdaysContainer.innerHTML = '';
-  const days = startOnMonday 
-    ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  
-  days.forEach(day => {
-    const div = document.createElement('div');
-    div.textContent = day;
-    weekdaysContainer.appendChild(div);
+/**
+ * 日历界面控制器。
+ *
+ * calendar-core.js 负责日期计算，holidays.js 负责数据获取；本文件只维护界面
+ * 状态、DOM 渲染和用户交互，避免把不同职责混在一个大函数里。
+ */
+(function bootstrapCalendar() {
+  const STORAGE_KEYS = Object.freeze({
+    startOnMonday: 'vibe-calendar:preference:start-on-monday'
   });
-  toggleWeekBtn.textContent = startOnMonday ? '1st: Mon' : '1st: Sun';
-}
 
-function createDayElement(year, month, dayNum, typeClass, todayDate) {
-  let y = year;
-  let m = month;
-  if (m < 0) { m = 11; y--; }
-  if (m > 11) { m = 0; y++; }
-  
-  const dateObj = new Date(y, m, dayNum);
-  const dayOfWeek = dateObj.getDay(); // 0 is Sun, 6 is Sat
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  
-  const dayDiv = document.createElement('div');
-  dayDiv.classList.add('day');
-  if (typeClass !== 'current-month') {
-    dayDiv.classList.add('off-month');
-  }
+  const elements = {
+    app: document.getElementById('app-container'),
+    monthYear: document.getElementById('month-year'),
+    calendarGrid: document.getElementById('calendar-grid'),
+    weekdays: document.getElementById('weekdays-container'),
+    previousMonth: document.getElementById('prev-month'),
+    nextMonth: document.getElementById('next-month'),
+    close: document.getElementById('close-btn'),
+    clock: document.getElementById('clock'),
+    goToday: document.getElementById('go-today-btn'),
+    toggleWeek: document.getElementById('toggle-week-btn')
+  };
 
-  const dateNumEl = document.createElement('span');
-  dateNumEl.classList.add('date-num');
-  dateNumEl.textContent = dayNum;
-  dayDiv.appendChild(dateNumEl);
+  const state = {
+    visibleMonth: CalendarCore.startOfMonth(new Date()),
+    startOnMonday: readBooleanPreference(STORAGE_KEYS.startOnMonday, false),
+    renderVersion: 0
+  };
 
-  const monthStr = String(m + 1).padStart(2, '0');
-  const dayStr = String(dayNum).padStart(2, '0');
-  const dateKey = `${y}-${monthStr}-${dayStr}`;
-
-  // Get cached holidays for the year of this specific date
-  const holidays = window.holidayManager.cache[y];
-  const holidayData = holidays && holidays[dateKey];
-  let isWorkDay = !isWeekend;
-
-  if (holidayData) {
-    const holiSpan = document.createElement('span');
-    if (holidayData.isHoliday) {
-      isWorkDay = false;
-      holiSpan.classList.add('holiday-text');
-      holiSpan.textContent = holidayData.name || '休';
-    } else {
-      isWorkDay = true;
-      holiSpan.classList.add('work-text');
-      holiSpan.textContent = '班';
+  function readBooleanPreference(key, fallback) {
+    try {
+      const value = localStorage.getItem(key);
+      return value === null ? fallback : value === 'true';
+    } catch (error) {
+      console.warn('读取界面偏好失败：', error);
+      return fallback;
     }
-    dayDiv.appendChild(holiSpan);
   }
 
-  if (isWorkDay) {
-    dayDiv.classList.add('is-workday');
-  } else {
-    dayDiv.classList.add('is-holiday');
+  function saveBooleanPreference(key, value) {
+    try {
+      localStorage.setItem(key, String(value));
+    } catch (error) {
+      console.warn('保存界面偏好失败：', error);
+    }
   }
 
-  // Check if it's today
-  if (y === todayDate.getFullYear() && m === todayDate.getMonth() && dayNum === todayDate.getDate()) {
-    dayDiv.classList.add('today');
+  /** 渲染星期标题，并同步更新切换按钮的可访问性描述。 */
+  function renderWeekdays() {
+    elements.weekdays.replaceChildren(...CalendarCore
+      .getWeekdayLabels(state.startOnMonday)
+      .map((label) => {
+        const cell = document.createElement('div');
+        cell.textContent = label;
+        return cell;
+      }));
+
+    const firstDay = state.startOnMonday ? 'Mon' : 'Sun';
+    elements.toggleWeek.textContent = `1st: ${firstDay}`;
+    elements.toggleWeek.setAttribute('aria-pressed', String(state.startOnMonday));
   }
 
-  return dayDiv;
-}
+  /** 创建一个日期单元格；节假日信息只影响展示，不参与日期计算。 */
+  function createDayElement(cell, today) {
+    const dateKey = CalendarCore.toDateKey(cell.year, cell.month, cell.day);
+    const holidayData = window.holidayManager.getHolidays(cell.year)[dateKey];
+    const isWeekend = cell.dayOfWeek === 0 || cell.dayOfWeek === 6;
+    const isWorkDay = holidayData ? !holidayData.isHoliday : !isWeekend;
 
-async function renderCalendar() {
-  calendarGrid.innerHTML = '';
-  renderWeekdays();
-  
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
+    const dayElement = document.createElement('div');
+    dayElement.classList.add('day', isWorkDay ? 'is-workday' : 'is-holiday');
+    if (!cell.isCurrentMonth) dayElement.classList.add('off-month');
 
-  // Fetch current year, and adjacent years to cover prev/next month overflow
-  await window.holidayManager.fetchHolidays(year);
-  if (month === 0) await window.holidayManager.fetchHolidays(year - 1);
-  if (month === 11) await window.holidayManager.fetchHolidays(year + 1);
+    const dateNumber = document.createElement('span');
+    dateNumber.className = 'date-num';
+    dateNumber.textContent = cell.day;
+    dayElement.appendChild(dateNumber);
 
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const daysInPrevMonth = new Date(year, month, 0).getDate();
+    if (holidayData) {
+      const marker = document.createElement('span');
+      marker.className = holidayData.isHoliday ? 'holiday-text' : 'work-text';
+      marker.textContent = holidayData.isHoliday ? (holidayData.name || '休') : '班';
+      dayElement.appendChild(marker);
+    }
 
-  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  monthYearElement.textContent = `${monthNames[month]} ${year}`;
+    const isToday = cell.year === today.getFullYear()
+      && cell.month === today.getMonth()
+      && cell.day === today.getDate();
+    if (isToday) dayElement.classList.add('today');
 
-  let emptySlots = firstDayOfMonth;
-  if (startOnMonday) {
-    emptySlots = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
+    const accessibleDate = `${cell.year}-${cell.month + 1}-${cell.day}`;
+    dayElement.setAttribute('aria-label', holidayData?.name
+      ? `${accessibleDate}，${holidayData.name}${holidayData.isHoliday ? '，休息' : '，补班'}`
+      : accessibleDate);
+    return dayElement;
   }
 
-  const today = new Date();
+  /** 使用当前缓存同步绘制界面，因此网络慢或离线时不会出现空白日历。 */
+  function renderCalendarGrid() {
+    const year = state.visibleMonth.getFullYear();
+    const month = state.visibleMonth.getMonth();
+    const cells = CalendarCore.buildMonthCells(year, month, state.startOnMonday);
+    const today = new Date();
 
-  // Prev month days
-  for (let i = emptySlots - 1; i >= 0; i--) {
-    const dayNum = daysInPrevMonth - i;
-    const el = createDayElement(year, month - 1, dayNum, 'prev-month', today);
-    calendarGrid.appendChild(el);
+    elements.monthYear.textContent = CalendarCore.getMonthLabel(year, month);
+    renderWeekdays();
+
+    const fragment = document.createDocumentFragment();
+    cells.forEach((cell) => fragment.appendChild(createDayElement(cell, today)));
+    elements.calendarGrid.replaceChildren(fragment);
   }
 
-  // Current month days
-  for (let i = 1; i <= daysInMonth; i++) {
-    const el = createDayElement(year, month, i, 'current-month', today);
-    calendarGrid.appendChild(el);
+  function getVisibleYears() {
+    const year = state.visibleMonth.getFullYear();
+    const month = state.visibleMonth.getMonth();
+    const years = new Set([year]);
+    if (month === 0) years.add(year - 1);
+    if (month === 11) years.add(year + 1);
+    return [...years];
   }
 
-  // Next month days (fill exactly 42 slots = 6 rows)
-  const totalCellsFilled = emptySlots + daysInMonth;
-  const remainingCells = 42 - totalCellsFilled;
-  for (let i = 1; i <= remainingCells; i++) {
-    const el = createDayElement(year, month + 1, i, 'next-month', today);
-    calendarGrid.appendChild(el);
+  /**
+   * 先同步绘制，再后台刷新节假日并重绘。
+   * renderVersion 用于丢弃快速翻月过程中较早请求产生的过期渲染结果。
+   */
+  async function renderCalendar() {
+    const version = ++state.renderVersion;
+    renderCalendarGrid();
+
+    await Promise.all(getVisibleYears().map((year) => (
+      window.holidayManager.fetchHolidays(year)
+    )));
+
+    if (version === state.renderVersion) {
+      renderCalendarGrid();
+    }
   }
-}
 
-// Clock logic
-function updateClock() {
-  const now = new Date();
-  clockElement.textContent = now.toLocaleTimeString('en-US', { hour12: false });
-}
-setInterval(updateClock, 1000);
-updateClock();
+  function moveMonth(offset) {
+    state.visibleMonth = CalendarCore.addMonths(state.visibleMonth, offset);
+    renderCalendar();
+  }
 
-// Event Listeners
-toggleWeekBtn.addEventListener('click', () => {
-  startOnMonday = !startOnMonday;
+  function updateClock() {
+    elements.clock.textContent = new Date().toLocaleTimeString('en-US', {
+      hour12: false
+    });
+  }
+
+  function bindEvents() {
+    elements.toggleWeek.addEventListener('click', () => {
+      state.startOnMonday = !state.startOnMonday;
+      saveBooleanPreference(STORAGE_KEYS.startOnMonday, state.startOnMonday);
+      renderCalendar();
+    });
+
+    elements.goToday.addEventListener('click', () => {
+      state.visibleMonth = CalendarCore.startOfMonth(new Date());
+      renderCalendar();
+    });
+
+    elements.previousMonth.addEventListener('click', () => moveMonth(-1));
+    elements.nextMonth.addEventListener('click', () => moveMonth(1));
+    elements.close.addEventListener('click', () => window.close());
+
+    // 滚轮每 200ms 最多翻一页，防止触控板惯性一次跨过多个月份。
+    let wheelLocked = false;
+    elements.app.addEventListener('wheel', (event) => {
+      if (wheelLocked || event.deltaY === 0) return;
+      moveMonth(event.deltaY > 0 ? 1 : -1);
+      wheelLocked = true;
+      setTimeout(() => { wheelLocked = false; }, 200);
+    }, { passive: true });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft') moveMonth(-1);
+      if (event.key === 'ArrowRight') moveMonth(1);
+      if (event.key.toLowerCase() === 't') {
+        state.visibleMonth = CalendarCore.startOfMonth(new Date());
+        renderCalendar();
+      }
+    });
+  }
+
+  bindEvents();
+  updateClock();
+  setInterval(updateClock, 1000);
   renderCalendar();
-});
-
-goTodayBtn.addEventListener('click', () => {
-  currentDate = new Date();
-  renderCalendar();
-});
-
-function goPrevMonth() {
-  currentDate.setMonth(currentDate.getMonth() - 1);
-  renderCalendar();
-}
-function goNextMonth() {
-  currentDate.setMonth(currentDate.getMonth() + 1);
-  renderCalendar();
-}
-
-prevBtn.addEventListener('click', goPrevMonth);
-nextBtn.addEventListener('click', goNextMonth);
-
-// Mouse wheel debounce
-let scrollTimeout = null;
-document.getElementById('app-container').addEventListener('wheel', (e) => {
-  if (scrollTimeout) return;
-  
-  if (e.deltaY > 0) goNextMonth(); // scroll down -> next
-  else if (e.deltaY < 0) goPrevMonth(); // scroll up -> prev
-
-  scrollTimeout = setTimeout(() => { scrollTimeout = null; }, 200);
-});
-
-closeBtn.addEventListener('click', () => window.close());
-
-// Initial render
-renderCalendar();
+})();

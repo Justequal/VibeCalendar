@@ -1,47 +1,55 @@
+/* 
+ * 全局变量定义区：所有的颜色主题、毛玻璃效果参数都在这里统一定义
+ */
 :root {
-  --bg-color: rgba(20, 20, 25, 0.75);
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --text-primary: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.4);
-  --accent-color: #6366f1;
-  --accent-hover: #818cf8;
-  --today-bg: linear-gradient(135deg, #6366f1, #a855f7);
-  --holiday-color: #ff4757; /* Bright red for holidays/weekends */
-  --work-color: #ffffff; /* Normal color for work days */
+  --bg-color: rgba(20, 20, 25, 0.75);         /* 整体背景底色 (极暗的紫灰色带有高透明度) */
+  --glass-bg: rgba(255, 255, 255, 0.05);      /* 元素表面的毛玻璃反光层 */
+  --glass-border: rgba(255, 255, 255, 0.1);   /* 毛玻璃的高光边框，增加立体感 */
+  --text-primary: #ffffff;                    /* 主要文字颜色 (纯白) */
+  --text-secondary: rgba(255, 255, 255, 0.4); /* 次要文字颜色 (半透明白) */
+  --accent-color: #6366f1;                    /* 强调色 (科技蓝紫) */
+  --accent-hover: #818cf8;                    /* 强调色悬停状态 */
+  --today-bg: linear-gradient(135deg, #6366f1, #a855f7); /* “今天”专属的渐变高亮背景 */
+  --holiday-color: #ff4757;                   /* 节假日的特殊警示色 (明亮的红色) */
+  --work-color: #ffffff;                      /* 正常工作日的颜色 */
 }
 
+/* 全局重置与字体设定 */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Outfit', sans-serif;
+  /* 使用本机字体，保证完全离线启动并避免远程字体闪烁。 */
+  font-family: Inter, "Segoe UI", "Microsoft YaHei UI", sans-serif;
 }
 
+/* 页面主体 */
 body {
-  background: transparent;
+  background: transparent;           /* 必须透明，才能透出桌面的背景 */
   color: var(--text-primary);
-  overflow: hidden; /* Prevent scrollbars */
+  overflow: hidden;                  /* 隐藏默认滚动条，保持界面纯净 */
   height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+/* 核心毛玻璃容器：承载整个应用 */
 .app-container {
   width: 100%;
   height: 100%;
   background: var(--bg-color);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);         /* 核心效果：高强度背景模糊 */
+  -webkit-backdrop-filter: blur(20px); /* 兼容 Safari */
   border: 1px solid var(--glass-border);
-  border-radius: 20px;
+  border-radius: 20px;                 /* 圆角切割 */
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); /* 超大范围的环境阴影 */
   position: relative;
 }
 
+/* 顶部无边框拖拽栏 */
 .title-bar {
   height: 35px;
   display: flex;
@@ -50,14 +58,16 @@ body {
   padding: 0 10px;
 }
 
+/* 给 Electron 指定的可拖拽区域 */
 .drag-region {
   flex-grow: 1;
   height: 100%;
-  -webkit-app-region: drag; 
+  -webkit-app-region: drag; /* 这一行让透明区域可以被鼠标按住拖动窗口 */
 }
 
+/* 自定义关闭按钮 */
 .close-btn {
-  -webkit-app-region: no-drag;
+  -webkit-app-region: no-drag; /* 按钮区域不能拖拽，否则点按会失效 */
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -69,14 +79,15 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: all 0.3s ease;
+  transition: all 0.3s ease; /* 悬停动画过渡 */
 }
 
 .close-btn:hover {
   background: rgba(255, 69, 58, 0.2);
-  color: #ff453a;
+  color: #ff453a; /* 苹果风格的危险红色 */
 }
 
+/* 日历头部：包含年月显示和翻页 */
 .calendar-header {
   display: flex;
   justify-content: space-between;
@@ -94,9 +105,10 @@ body {
 h1 {
   font-size: 20px;
   font-weight: 600;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.3); /* 文字发光效果 */
 }
 
+/* 首日切换小按钮 */
 .toggle-week-btn {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--glass-border);
@@ -113,6 +125,7 @@ h1 {
   background: rgba(255, 255, 255, 0.15);
 }
 
+/* 翻页按钮 */
 .nav-btn {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
@@ -127,12 +140,13 @@ h1 {
 
 .nav-btn:hover {
   background: var(--accent-color);
-  transform: scale(1.05);
+  transform: scale(1.05); /* 悬停时轻微放大 */
 }
 
+/* 星期表头布局 */
 .weekdays {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, 1fr); /* 7列等宽均分 */
   text-align: center;
   font-weight: 600;
   font-size: 12px;
@@ -140,14 +154,16 @@ h1 {
   padding: 0 15px 10px;
 }
 
+/* 日期网格容器 */
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
+  gap: 6px; /* 日期方块之间的间距 */
   padding: 0 15px 15px;
-  flex-grow: 1;
+  flex-grow: 1; /* 撑满剩余空间 */
 }
 
+/* 单个日期方块 */
 .day {
   background: var(--glass-bg);
   border: 1px solid transparent;
@@ -162,7 +178,7 @@ h1 {
 }
 
 .day:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.1); /* 鼠标悬停变亮 */
   border-color: var(--glass-border);
 }
 
@@ -171,21 +187,23 @@ h1 {
   font-weight: 500;
 }
 
-/* Off-month days (Dimmed) */
+/* 非本月的日期（变暗） */
 .day.off-month {
   opacity: 0.3;
 }
 
-/* Holidays and Weekends */
+/* 节假日与周末的高亮样式 */
 .day.is-holiday .date-num {
   color: var(--holiday-color);
   font-weight: 700;
 }
 
+/* 普通工作日 */
 .day.is-workday .date-num {
   color: var(--work-color);
 }
 
+/* 节假日下方的文字标注 (如: '休', '国庆节') */
 .holiday-text {
   font-size: 9px;
   color: var(--holiday-color);
@@ -194,6 +212,7 @@ h1 {
   white-space: nowrap;
 }
 
+/* 补班下方的文字标注 (如: '班') */
 .work-text {
   font-size: 9px;
   color: var(--accent-color);
@@ -202,6 +221,7 @@ h1 {
   white-space: nowrap;
 }
 
+/* 今天的特殊强高亮样式 */
 .day.today {
   background: var(--today-bg);
   border: none;
@@ -209,10 +229,10 @@ h1 {
 }
 
 .day.today .date-num {
-  color: #fff; /* Always white for today */
+  color: #fff; /* 今天的日期数字强制纯白 */
 }
 
-/* Footer Styles */
+/* 底部区域 */
 .footer {
   display: flex;
   justify-content: space-between;
@@ -222,12 +242,14 @@ h1 {
   margin-top: auto;
 }
 
+/* 极简发光时钟 */
 .clock {
   font-size: 16px;
   font-weight: 300;
-  letter-spacing: 1px;
+  letter-spacing: 1px; /* 增加字间距更有科技感 */
 }
 
+/* 回到今天按钮 */
 .today-btn {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid var(--glass-border);
