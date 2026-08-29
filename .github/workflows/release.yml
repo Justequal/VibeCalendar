@@ -77,7 +77,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Upload workflow artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: Vibe-Calendar-${{ github.ref_name }}-Windows
         path: |
