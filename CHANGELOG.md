@@ -3,6 +3,12 @@
 本文件记录 Vibe Calendar 各正式版本中用户可感知的变化。格式参考 Keep a Changelog，
 版本号遵循语义化版本。
 
+## [1.0.2] - 2026-08-30
+
+### 修复
+
+- 安装包实际文件名现在与 `latest.yml` 完全一致，确保自动更新下载地址有效
+
 ## [1.0.1] - 2026-08-29
 
 ### 修复
@@ -24,5 +30,6 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
+[1.0.2]: https://github.com/Justequal/VibeCalendar/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Justequal/VibeCalendar/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Justequal/VibeCalendar/releases/tag/v1.0.0

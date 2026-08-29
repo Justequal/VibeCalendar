@@ -49,13 +49,18 @@ jobs:
     - name: Create GitHub Release and upload assets
       shell: pwsh
       run: |
-        $assets = Get-ChildItem dist -File | Where-Object {
-          $_.Extension -in '.exe', '.blockmap' -or $_.Name -eq 'latest.yml'
+        $updateFileName = Get-Content dist/latest.yml |
+          Where-Object { $_ -match '^path:\s*(.+)$' } |
+          ForEach-Object { $Matches[1].Trim() } |
+          Select-Object -First 1
+
+        if ([string]::IsNullOrWhiteSpace($updateFileName)) {
+          throw "Unable to read update path from dist/latest.yml"
         }
 
-        if ($assets.Count -lt 3) {
-          throw "Expected installer, blockmap, and latest.yml in dist"
-        }
+        $installer = Get-Item (Join-Path dist $updateFileName)
+        $blockmap = Get-Item "$($installer.FullName).blockmap"
+        $assets = @($installer, $blockmap, (Get-Item dist/latest.yml))
 
         gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" *> $null
         if ($LASTEXITCODE -ne 0) {
