@@ -1,27 +1,28 @@
 /**
  * 应用自动更新。
  *
- * 开发模式不检查更新；package.json 中仍是示例仓库时也主动跳过，避免每次
- * 启动都产生无意义的网络错误。配置方式见 README 的“自动更新”章节。
+ * 安装版启动后静默检查并在后台下载更新。只有安装包准备完成时才打扰用户，
+ * 让用户选择立即重启安装，或在正常退出应用时自动安装。
  */
 const { app, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const packageMetadata = require('../../package.json');
 
-function getPublishConfig() {
+let updateCheckStarted = false;
+
+function getPublishConfigs() {
   const publish = packageMetadata.build?.publish;
-  return Array.isArray(publish) ? publish[0] : publish;
+  return Array.isArray(publish) ? publish : [publish].filter(Boolean);
 }
 
 function isUpdateConfigured() {
-  const config = getPublishConfig();
-  return Boolean(
-    config
-    && config.provider === 'github'
-    && config.owner
-    && config.owner !== 'YourUsername'
-    && config.repo
-  );
+  return getPublishConfigs().some((config) => (
+    config === 'github'
+    || (
+      config?.provider === 'github'
+      && config.owner !== 'YourUsername'
+    )
+  ));
 }
 
 function showDialog(parentWindow, options) {
@@ -36,40 +37,35 @@ function checkForUpdates(parentWindow) {
     return;
   }
 
-  autoUpdater.autoDownload = false;
+  if (updateCheckStarted) return;
+
+  updateCheckStarted = true;
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowPrerelease = false;
 
-  autoUpdater.once('update-available', async (info) => {
-    const result = await showDialog(parentWindow, {
-      type: 'info',
-      title: '发现新版本',
-      message: `Vibe Calendar v${info.version} 已发布。`,
-      detail: '是否立即下载？下载期间可以继续使用日历。',
-      buttons: ['立即下载', '稍后提醒'],
-      defaultId: 0,
-      cancelId: 1
-    });
-
-    if (result.response === 0) {
-      autoUpdater.downloadUpdate().catch((error) => {
-        console.error('下载更新失败：', error);
-      });
-    }
+  autoUpdater.once('update-available', (info) => {
+    console.info(`发现 Vibe Calendar v${info.version}，正在后台下载。`);
   });
 
-  autoUpdater.once('update-downloaded', async () => {
-    const result = await showDialog(parentWindow, {
-      type: 'info',
-      title: '更新准备就绪',
-      message: '新版本已经下载完成。',
-      detail: '可以立即重启安装，也可以在下次退出应用时自动安装。',
-      buttons: ['重启并安装', '稍后'],
-      defaultId: 0,
-      cancelId: 1
-    });
+  autoUpdater.once('update-downloaded', async (info) => {
+    try {
+      const result = await showDialog(parentWindow, {
+        type: 'info',
+        title: '更新准备就绪',
+        message: `Vibe Calendar v${info.version} 已准备就绪。`,
+        detail: '立即重启即可完成安装；选择“稍后”则会在你正常退出应用时自动安装。',
+        buttons: ['重启并安装', '稍后'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true
+      });
 
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall();
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall(false, true);
+      }
+    } catch (error) {
+      console.error('无法显示更新安装提示：', error);
     }
   });
 

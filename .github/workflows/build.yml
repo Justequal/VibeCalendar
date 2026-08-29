@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - master
   pull_request:
     branches:
       - main
+      - master
 
 jobs:
   build:
@@ -38,5 +40,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Windows-Installer
-        path: dist/*.exe
+        path: |
+          dist/*.exe
+          dist/*.blockmap
+          dist/latest.yml
         if-no-files-found: error

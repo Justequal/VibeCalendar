@@ -70,6 +70,7 @@
 
     const dayElement = document.createElement('div');
     dayElement.classList.add('day', isWorkDay ? 'is-workday' : 'is-holiday');
+    dayElement.setAttribute('role', 'gridcell');
     if (!cell.isCurrentMonth) dayElement.classList.add('off-month');
 
     const dateNumber = document.createElement('span');

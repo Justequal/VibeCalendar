@@ -2,10 +2,21 @@
   "name": "vibe-calendar",
   "version": "1.0.0",
   "description": "A beautiful, modern open-source desktop calendar",
+  "author": "Vibe Calendar Contributors",
+  "license": "MIT",
+  "homepage": "https://github.com/Justequal/VibeCalendar#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Justequal/VibeCalendar.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Justequal/VibeCalendar/issues"
+  },
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/calendar-core.test.js",
+    "preview:web": "explorer src\\renderer\\index.html",
+    "test": "node --test",
     "check:syntax": "node --check src/main/main.js && node --check src/main/updater.js && node --check src/renderer/calendar-core.js && node --check src/renderer/holidays.js && node --check src/renderer/renderer.js",
     "verify": "npm run check:syntax && npm test",
     "pack": "electron-builder --dir",
@@ -25,23 +36,25 @@
       "package.json"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "src/assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
+      "createDesktopShortcut": true,
+      "installerIcon": "src/assets/icon.ico",
+      "uninstallerIcon": "src/assets/icon.ico"
     },
     "publish": [
       {
         "provider": "github",
-        "owner": "YourUsername",
-        "repo": "VibeCalendar"
+        "releaseType": "release"
       }
     ]
   },
   "devDependencies": {
-    "electron": "^30.0.0",
+    "electron": "^44.0.0",
     "electron-builder": "^26.8.1"
   },
   "dependencies": {

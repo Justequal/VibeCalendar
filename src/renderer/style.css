@@ -2,7 +2,7 @@
  * 全局变量定义区：所有的颜色主题、毛玻璃效果参数都在这里统一定义
  */
 :root {
-  --bg-color: rgba(20, 20, 25, 0.75);         /* 整体背景底色 (极暗的紫灰色带有高透明度) */
+  --bg-color: #16161d;                        /* 整体背景底色 (现代深空灰暗色背景) */
   --glass-bg: rgba(255, 255, 255, 0.05);      /* 元素表面的毛玻璃反光层 */
   --glass-border: rgba(255, 255, 255, 0.1);   /* 毛玻璃的高光边框，增加立体感 */
   --text-primary: #ffffff;                    /* 主要文字颜色 (纯白) */
@@ -25,13 +25,14 @@
 
 /* 页面主体 */
 body {
-  background: transparent;           /* 必须透明，才能透出桌面的背景 */
+  background: var(--bg-color);       /* 使用深色背景，确保内容清晰展现 */
   color: var(--text-primary);
   overflow: hidden;                  /* 隐藏默认滚动条，保持界面纯净 */
   height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  user-select: none;                 /* 防止日常点按产生文本选中光标 */
 }
 
 /* 核心毛玻璃容器：承载整个应用 */

@@ -1,0 +1,59 @@
+name: Release Windows App
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+
+    steps:
+    - name: Check out Git repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Verify tag matches app version
+      shell: pwsh
+      run: |
+        $packageVersion = node -p "require('./package.json').version"
+        if ("${{ github.ref_name }}" -notmatch '^v\d+\.\d+\.\d+$') {
+          throw "Release tags must use stable semantic versions such as v1.2.3"
+        }
+        if ("v$packageVersion" -ne "${{ github.ref_name }}") {
+          throw "Tag ${{ github.ref_name }} does not match package version v$packageVersion"
+        }
+
+    - name: Verify source
+      run: npm run verify
+
+    - name: Build and publish GitHub Release
+      run: npm run build -- --publish always
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload workflow artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Vibe-Calendar-${{ github.ref_name }}-Windows
+        path: |
+          dist/*.exe
+          dist/*.blockmap
+          dist/latest.yml
+        if-no-files-found: error
