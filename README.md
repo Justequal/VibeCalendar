@@ -100,16 +100,32 @@ VibeCalendar/
 
 如果以后需要系统能力，应通过最小化的 preload API 和 `contextBridge` 暴露，不要重新开启完整 Node.js 集成。
 
+## 安装与下载
+
+### 方式 1：Windows 官方包管理器（Winget 一键安装）
+
+```powershell
+winget install Justequal.VibeCalendar
+```
+
+### 方式 2：GitHub Releases 手动下载安装
+
+前往 [Releases](https://github.com/Justequal/VibeCalendar/releases) 页面下载最新的 `Vibe-Calendar-Setup-*.exe` 安装包。
+
+> [!NOTE]
+> **Windows 安全提示说明**：
+> 由于开源项目未购买昂贵的商业代码签名证书，下载或首次运行安装包时 Windows SmartScreen 可能弹出“已保护你的电脑 / 未知发布者”提示。
+> 请点击弹窗中的 **「更多信息」 $\to$ 「仍要运行」** 即可正常安装。
+
 ## 自动更新
 
 安装版应用每次启动都会静默检查 GitHub Releases。发现新版本后会自动在后台下载，
 下载期间日历可以继续使用；安装包准备完成后，应用才会提醒用户选择“重启并安装”
 或“稍后”。选择“稍后”时，更新会在应用下次正常退出时安装。
 
-自动更新只在安装后的打包版本中启用，开发模式不会访问更新服务。更新来源是当前
-公开 GitHub 仓库中最新的正式 Release；预发布版本不会推送给稳定版用户。
+用户亦可随时点击界面底部的“检查更新”按钮进行手动检查，或点击版本号查看最新版本更新公告。
+自动更新只在安装后的打包版本中启用，开发模式不会访问更新服务。
 
-发布正式版本前还应配置 Windows 代码签名。未签名安装包可能触发 SmartScreen 警告。
 
 ## 发布新版本
 

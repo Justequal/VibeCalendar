@@ -38,8 +38,26 @@ git push origin main --follow-tags
 `1.0.1` 失败时发布 `1.0.2`。如果工作流在创建 Release 前失败，可以在修复工作流后
 从 GitHub Actions 页面重新运行同一次任务。
 
-## Windows 签名
+## Windows 签名与安全提示
 
-当前自动化支持未签名安装包，Windows SmartScreen 可能显示警告。面向更多用户分发前，
-应购买代码签名证书，把证书和密码放入 GitHub Actions Secrets，并在构建环境中注入；
-不要把证书或密码提交到仓库。
+当前自动化支持未签名安装包，Windows SmartScreen 可能显示未识别发布者警告。面向更多用户分发前，
+可申请开源免费代码签名证书（如 SignPath.io）或购买商业证书，把证书和密码放入 GitHub Actions Secrets；
+不要把证书或密码明文提交到仓库。
+
+## Windows 官方源（Winget）持续更新
+
+本项目已集成对微软官方包管理器（Windows Package Manager / Winget）的自动更新支持。
+
+### 1. 首次上架（只需做一次）
+1. 在 Windows 终端安装微软官方工具：`winget install Microsoft.WingetCreate`
+2. 运行命令生成并提交首次安装包清单：
+   ```powershell
+   wingetcreate new https://github.com/Justequal/VibeCalendar/releases/download/v1.1.1/Vibe-Calendar-Setup-1.1.1.exe
+   ```
+3. 包标识符（PackageIdentifier）填写：`Justequal.VibeCalendar`。按照交互提示输入 GitHub Token 提交 PR 给 `microsoft/winget-pkgs` 仓库。
+
+### 2. 配置 CI/CD 持续自动更新
+1. 在 GitHub 创建个人访问令牌（Personal Access Token，勾选 `public_repo` 权限）。
+2. 在仓库 **Settings $\to$ Secrets and variables $\to$ Actions** 中添加 Secret，名称为 `WINGET_TOKEN`。
+3. 以后每次推送正式版本标签发布 Release 时，GitHub Actions 会自动提取版本号并向 `microsoft/winget-pkgs` 提交更新清单 PR，无需手动干预。
+
