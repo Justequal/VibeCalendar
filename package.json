@@ -1,6 +1,6 @@
 {
   "name": "vibe-calendar",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A beautiful, modern open-source desktop calendar",
   "author": "Vibe Calendar Contributors",
   "license": "MIT",
@@ -18,7 +18,7 @@
     "dev": "electron . --live-preview",
     "preview:web": "explorer src\\renderer\\index.html",
     "test": "node --test",
-    "check:syntax": "node --check src/main/main.js && node --check src/main/updater.js && node --check src/renderer/calendar-core.js && node --check src/renderer/holidays.js && node --check src/renderer/renderer.js",
+    "check:syntax": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/main/updater.js && node --check src/renderer/calendar-core.js && node --check src/renderer/holidays.js && node --check src/renderer/renderer.js",
     "verify": "npm run check:syntax && npm test",
     "pack": "electron-builder --dir",
     "build": "electron-builder"

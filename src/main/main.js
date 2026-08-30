@@ -4,16 +4,32 @@
  * 主进程只负责窗口生命周期和操作系统能力；日期、节假日和 DOM 逻辑全部留在
  * renderer 目录。渲染进程不需要 Node.js 权限，因此保持隔离与沙箱开启。
  */
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const { checkForUpdates } = require('./updater');
+const { checkForUpdates, getLatestRelease } = require('./updater');
 
 const LIVE_PREVIEW_ENABLED = process.argv.includes('--live-preview');
 const RENDERER_DIRECTORY = path.join(__dirname, '../renderer');
 
 // 禁用硬件加速：防止在特定 Windows 显卡环境下 GPU 进程崩溃 (0xC0000005)
 app.disableHardwareAcceleration();
+
+/**
+ * 注册主进程与渲染进程之间的 IPC 通信处理程序。
+ * 包括读取版本号、从 GitHub API 获取最新 Release 公告，以及执行手动更新检查。
+ */
+function registerIpcHandlers() {
+  // 获取当前 Electron 应用的版本号
+  ipcMain.handle('app:get-version', () => app.getVersion());
+  // 获取 GitHub 最新 Release 版本信息与更新说明
+  ipcMain.handle('updates:get-latest-release', () => getLatestRelease());
+  // 手动触发更新检查
+  ipcMain.handle('updates:check', (event) => checkForUpdates(
+    BrowserWindow.fromWebContents(event.sender),
+    { manual: true }
+  ));
+}
 
 /**
  * 开发模式下监听前端文件，保存后自动刷新 Electron 窗口。
@@ -68,6 +84,7 @@ function createWindow() {
     backgroundColor: '#16161d', // 统一暗夜背景色，杜绝闪烁并提供最佳对比度
     hasShadow: true, // 启用原生窗口投影
     webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false, // 禁用 Node.js API 注入，保障安全性
       contextIsolation: true, // 开启上下文隔离
       sandbox: true, // 开启沙箱环境
@@ -98,6 +115,7 @@ function createWindow() {
 // Electron 完成初始化后创建窗口并检查更新
 app.whenReady().then(() => {
   console.log('🚀 Electron app.whenReady 完成，开始创建窗口...');
+  registerIpcHandlers();
   const mainWindow = createWindow();
   checkForUpdates(mainWindow);
 

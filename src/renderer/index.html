@@ -49,10 +49,34 @@
       <!-- 具体的日期方块都会被 renderer.js 渲染后插入这里 -->
     </div>
 
-    <!-- 底部功能栏：包含数字时钟与"回到今天"快捷按钮 -->
+    <!-- 底部功能栏：展示时钟与版本号（点击可打开最新版本公告），以及手动检查更新按钮与回到今天按钮 -->
     <div class="footer">
-      <div id="clock" class="clock">00:00:00</div>
-      <button id="go-today-btn" class="today-btn" title="快捷键 T">回到今天</button>
+      <div class="footer-info">
+        <div id="clock" class="clock">00:00:00</div>
+        <!-- 版本号按钮：点击展示最新版本更新公告模态框 -->
+        <button id="version-btn" class="version-btn" title="查看更新公告">v1.1.1</button>
+      </div>
+      <div class="footer-actions">
+        <!-- 手动检查更新按钮 -->
+        <button id="check-update-btn" class="update-btn">检查更新</button>
+        <button id="go-today-btn" class="today-btn" title="快捷键 T">回到今天</button>
+      </div>
+      <!-- 检查更新时的状态提示浮层 -->
+      <div id="update-status" class="update-status" role="status" aria-live="polite" hidden></div>
+    </div>
+
+    <!-- 最新版本更新公告模态弹窗 -->
+    <div id="release-modal" class="release-modal" hidden>
+      <section class="release-card" role="dialog" aria-modal="true" aria-labelledby="release-title">
+        <header class="release-header">
+          <div>
+            <h2 id="release-title">更新公告</h2>
+            <p id="release-version" class="release-version"></p>
+          </div>
+          <button id="release-close-btn" class="release-close-btn" aria-label="关闭更新公告">×</button>
+        </header>
+        <div id="release-notes" class="release-notes">正在加载…</div>
+      </section>
     </div>
   </div>
 

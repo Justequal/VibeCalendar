@@ -3,6 +3,19 @@
 本文件记录 Vibe Calendar 各正式版本中用户可感知的变化。格式参考 Keep a Changelog，
 版本号遵循语义化版本。
 
+## [1.1.1] - 2026-08-30
+
+### 新增
+
+- 底部状态栏展示应用当前版本号，点击版本号即可弹出最新版本更新公告模态框
+- 底部功能区提供手动「检查更新」按钮与即时状态提示浮层
+- 通过 Preload 隔离桥接安全支持主进程版本查询与 GitHub Releases 更新日志拉取
+
+### 修复
+
+- 修复手动检查更新时版本号字段解析的兼容性问题
+- 补充所有模块详细中文注释与自动化更新单元测试
+
 ## [1.1.0] - 2026-08-30
 
 ### 新增
@@ -45,6 +58,7 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
+[1.1.1]: https://github.com/Justequal/VibeCalendar/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Justequal/VibeCalendar/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Justequal/VibeCalendar/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Justequal/VibeCalendar/compare/v1.0.0...v1.0.1

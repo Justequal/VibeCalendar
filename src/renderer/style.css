@@ -369,6 +369,14 @@ h1 {
   padding: 10px 20px 15px;
   border-top: 1px solid rgba(148, 163, 184, 0.1);
   margin-top: auto;
+  position: relative;
+}
+
+.footer-info,
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 /* 极简发光时钟 */
@@ -378,8 +386,27 @@ h1 {
   letter-spacing: 1px; /* 增加字间距更有科技感 */
 }
 
-/* 回到今天按钮 */
-.today-btn {
+.version-btn {
+  appearance: none;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.45);
+  padding: 1px 0;
+  font-size: 9px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.version-btn:hover,
+.version-btn:focus-visible {
+  color: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+/* 底部操作按钮 */
+.today-btn,
+.update-btn {
   background: rgba(129, 140, 248, 0.12);
   border: 1px solid var(--glass-border);
   color: var(--text-primary);
@@ -390,7 +417,117 @@ h1 {
   transition: all 0.3s ease;
 }
 
-.today-btn:hover {
+.update-btn {
+  color: #c7d2fe;
+  background: rgba(129, 140, 248, 0.07);
+}
+
+.today-btn:hover,
+.update-btn:hover:not(:disabled) {
   background: rgba(129, 140, 248, 0.26);
   border-color: rgba(129, 140, 248, 0.48);
+}
+
+.update-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.update-status {
+  position: absolute;
+  right: 20px;
+  bottom: calc(100% + 5px);
+  max-width: calc(100% - 40px);
+  padding: 6px 9px;
+  color: #d1fae5;
+  background: rgba(6, 78, 59, 0.96);
+  border: 1px solid rgba(52, 211, 153, 0.42);
+  border-radius: 7px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+  font-size: 10px;
+  z-index: 6;
+}
+
+.update-status.is-error {
+  color: #ffe4e6;
+  background: rgba(136, 19, 55, 0.96);
+  border-color: rgba(251, 113, 133, 0.5);
+}
+
+.release-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(3, 7, 18, 0.72);
+  backdrop-filter: blur(7px);
+}
+
+.release-modal[hidden] {
+  display: none;
+}
+
+.release-card {
+  width: min(390px, 100%);
+  max-height: min(390px, calc(100% - 28px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--text-primary);
+  background: linear-gradient(155deg, rgba(30, 41, 59, 0.99), rgba(15, 23, 42, 0.99));
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+
+.release-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.13);
+}
+
+.release-header h2 {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.release-version {
+  margin-top: 4px;
+  color: var(--accent-hover);
+  font-size: 10px;
+}
+
+.release-close-btn {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  color: var(--text-secondary);
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.release-close-btn:hover {
+  color: #fff;
+  background: rgba(244, 63, 94, 0.22);
+  border-color: rgba(251, 113, 133, 0.42);
+}
+
+.release-notes {
+  overflow: auto;
+  padding: 15px 16px 18px;
+  color: #cbd5e1;
+  font-size: 11px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  user-select: text;
 }
