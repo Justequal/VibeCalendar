@@ -1,6 +1,6 @@
 {
   "name": "vibe-calendar",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "A beautiful, modern open-source desktop calendar",
   "author": "Vibe Calendar Contributors",
   "license": "MIT",
@@ -15,6 +15,7 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
+    "dev": "electron . --live-preview",
     "preview:web": "explorer src\\renderer\\index.html",
     "test": "node --test",
     "check:syntax": "node --check src/main/main.js && node --check src/main/updater.js && node --check src/renderer/calendar-core.js && node --check src/renderer/holidays.js && node --check src/renderer/renderer.js",
@@ -27,7 +28,7 @@
   },
   "build": {
     "appId": "com.vibecalendar.app",
-    "productName": "Vibe Calendar",
+    "productName": "氛围日历",
     "directories": {
       "output": "dist"
     },

@@ -8,7 +8,8 @@
  * 4. 成功结果写入 localStorage，下一次启动可以先使用缓存。
  */
 (function exposeHolidayManager(root) {
-  const CACHE_VERSION = 1;
+  // v3 增加 holiday 字段，用于在英文界面翻译整段假期的名称。
+  const CACHE_VERSION = 3;
   const CACHE_PREFIX = `vibe-calendar:holidays:v${CACHE_VERSION}:`;
   const REMOTE_CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
   const FALLBACK_CACHE_TTL = 6 * 60 * 60 * 1000;
@@ -56,6 +57,22 @@
       item.date,
       { name: item.name, isHoliday: Boolean(item.holiday) }
     ]));
+  }
+
+  function annotateFestivalDays(data) {
+    return Object.fromEntries(Object.entries(data).map(([dateKey, value]) => {
+      const [year, month, day] = dateKey.split('-').map(Number);
+      return [dateKey, {
+        ...value,
+        holiday: CalendarCore.getChineseHolidayKey(value.name),
+        festival: CalendarCore.getChineseFestivalKey(
+          year,
+          month - 1,
+          day,
+          value.name
+        )
+      }];
+    }));
   }
 
   /**
@@ -161,6 +178,8 @@
         ttl = FALLBACK_CACHE_TTL;
         source = 'local-fallback';
       }
+
+      data = annotateFestivalDays(data);
 
       const entry = { data, source, expiresAt: Date.now() + ttl };
       this.cache.set(year, entry);

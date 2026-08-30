@@ -2,16 +2,20 @@
  * 全局变量定义区：所有的颜色主题、毛玻璃效果参数都在这里统一定义
  */
 :root {
-  --bg-color: #16161d;                        /* 整体背景底色 (现代深空灰暗色背景) */
-  --glass-bg: rgba(255, 255, 255, 0.05);      /* 元素表面的毛玻璃反光层 */
-  --glass-border: rgba(255, 255, 255, 0.1);   /* 毛玻璃的高光边框，增加立体感 */
-  --text-primary: #ffffff;                    /* 主要文字颜色 (纯白) */
-  --text-secondary: rgba(255, 255, 255, 0.4); /* 次要文字颜色 (半透明白) */
-  --accent-color: #6366f1;                    /* 强调色 (科技蓝紫) */
-  --accent-hover: #818cf8;                    /* 强调色悬停状态 */
-  --today-bg: linear-gradient(135deg, #6366f1, #a855f7); /* “今天”专属的渐变高亮背景 */
-  --holiday-color: #ff4757;                   /* 节假日的特殊警示色 (明亮的红色) */
-  --work-color: #ffffff;                      /* 正常工作日的颜色 */
+  --bg-color: #090d18;
+  --surface-color: #101625;
+  --surface-raised: rgba(255, 255, 255, 0.055);
+  --glass-bg: rgba(148, 163, 184, 0.06);
+  --glass-border: rgba(148, 163, 184, 0.14);
+  --text-primary: #f8fafc;
+  --text-secondary: #8b98ad;
+  --accent-color: #818cf8;
+  --accent-hover: #a5b4fc;
+  --holiday-color: #fb7185;
+  --festival-color: #fbbf24;
+  --makeup-color: #67e8f9;
+  --work-color: #e5e7eb;
+  --today-bg: linear-gradient(145deg, #6366f1 0%, #2563eb 58%, #0891b2 100%);
 }
 
 /* 全局重置与字体设定 */
@@ -25,7 +29,10 @@
 
 /* 页面主体 */
 body {
-  background: var(--bg-color);       /* 使用深色背景，确保内容清晰展现 */
+  background:
+    radial-gradient(circle at 20% 0%, rgba(99, 102, 241, 0.16), transparent 42%),
+    radial-gradient(circle at 100% 100%, rgba(8, 145, 178, 0.1), transparent 44%),
+    var(--bg-color);
   color: var(--text-primary);
   overflow: hidden;                  /* 隐藏默认滚动条，保持界面纯净 */
   height: 100vh;
@@ -39,14 +46,14 @@ body {
 .app-container {
   width: 100%;
   height: 100%;
-  background: var(--bg-color);
+  background: linear-gradient(160deg, rgba(16, 22, 37, 0.98), rgba(9, 13, 24, 0.98));
   backdrop-filter: blur(20px);         /* 核心效果：高强度背景模糊 */
   -webkit-backdrop-filter: blur(20px); /* 兼容 Safari */
-  border: 1px solid var(--glass-border);
+  border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 20px;                 /* 圆角切割 */
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); /* 超大范围的环境阴影 */
+  box-shadow: 0 28px 70px -24px rgba(0, 0, 0, 0.78);
   position: relative;
 }
 
@@ -103,32 +110,43 @@ body {
   gap: 4px;
 }
 
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 h1 {
   font-size: 20px;
   font-weight: 600;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.3); /* 文字发光效果 */
+  letter-spacing: -0.02em;
 }
 
 /* 首日切换小按钮 */
 .toggle-week-btn {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(148, 163, 184, 0.08);
   border: 1px solid var(--glass-border);
   color: var(--text-secondary);
   font-size: 10px;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .toggle-week-btn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(129, 140, 248, 0.16);
+  border-color: rgba(129, 140, 248, 0.38);
+}
+
+.language-toggle-btn {
+  min-width: 30px;
 }
 
 /* 翻页按钮 */
 .nav-btn {
-  background: var(--glass-bg);
+  background: rgba(148, 163, 184, 0.07);
   border: 1px solid var(--glass-border);
   color: var(--text-primary);
   width: 30px;
@@ -140,8 +158,10 @@ h1 {
 }
 
 .nav-btn:hover {
-  background: var(--accent-color);
-  transform: scale(1.05); /* 悬停时轻微放大 */
+  background: rgba(129, 140, 248, 0.2);
+  border-color: rgba(129, 140, 248, 0.48);
+  color: var(--accent-hover);
+  transform: translateY(-1px);
 }
 
 /* 星期表头布局 */
@@ -155,10 +175,66 @@ h1 {
   padding: 0 15px 10px;
 }
 
+.calendar-legend {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  min-height: 18px;
+  margin: -4px 15px 6px;
+  color: var(--text-secondary);
+  font-size: 8.5px;
+}
+
+.calendar-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.calendar-legend > span:first-child {
+  min-width: 0;
+}
+
+#festival-legend {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.festival-dot {
+  background: var(--festival-color);
+  box-shadow: 0 0 7px rgba(251, 191, 36, 0.55);
+}
+
+.legend-badge {
+  width: 9px;
+  min-width: 9px;
+  height: 9px;
+  padding: 0;
+  border-radius: 3px;
+}
+
+.day-off-badge {
+  color: #fff1f2;
+  background: #e11d48;
+}
+
+.workday-badge {
+  color: #083344;
+  background: var(--makeup-color);
+}
+
 /* 日期网格容器 */
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px; /* 日期方块之间的间距 */
   padding: 0 15px 15px;
   flex-grow: 1; /* 撑满剩余空间 */
@@ -166,21 +242,23 @@ h1 {
 
 /* 单个日期方块 */
 .day {
-  background: var(--glass-bg);
-  border: 1px solid transparent;
-  border-radius: 10px;
+  min-width: 0;
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.065), rgba(148, 163, 184, 0.025));
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  border-radius: 9px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
   cursor: default;
   position: relative;
 }
 
 .day:hover {
-  background: rgba(255, 255, 255, 0.1); /* 鼠标悬停变亮 */
-  border-color: var(--glass-border);
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.26);
+  transform: translateY(-1px);
 }
 
 .day .date-num {
@@ -189,14 +267,45 @@ h1 {
 }
 
 /* 非本月的日期（变暗） */
-.day.off-month {
-  opacity: 0.3;
+.day.off-month:not(.today):not(.is-festival):not(.is-day-off):not(.is-makeup-workday) {
+  opacity: 0.38;
+  filter: saturate(0.72);
 }
 
-/* 节假日与周末的高亮样式 */
-.day.is-holiday .date-num {
-  color: var(--holiday-color);
+/* 普通周末与法定休假使用同一套玫瑰色；休假日另用徽标说明。 */
+.day.is-weekend,
+.day.is-day-off {
+  background: linear-gradient(145deg, rgba(244, 63, 94, 0.22), rgba(159, 18, 57, 0.08));
+  border-color: rgba(251, 113, 133, 0.48);
+}
+
+.day.is-weekend .date-num,
+.day.is-day-off .date-num {
+  color: #fecdd3;
+  font-weight: 650;
+}
+
+/* 真正的节日本日使用金色边框和名称，不与假期中的普通休息日混淆。 */
+.day.is-festival {
+  background: linear-gradient(145deg, rgba(251, 191, 36, 0.28), rgba(180, 83, 9, 0.1));
+  border-color: rgba(251, 191, 36, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(254, 243, 199, 0.1), 0 3px 12px rgba(245, 158, 11, 0.12);
+}
+
+.day.is-festival .date-num {
+  color: var(--festival-color);
   font-weight: 700;
+}
+
+/* 调休补班使用青色冷调，与休假和节日形成清晰分组。 */
+.day.is-makeup-workday {
+  background: linear-gradient(145deg, rgba(34, 211, 238, 0.2), rgba(8, 145, 178, 0.075));
+  border-color: rgba(103, 232, 249, 0.5);
+}
+
+.day.is-makeup-workday .date-num {
+  color: #cffafe;
+  font-weight: 650;
 }
 
 /* 普通工作日 */
@@ -204,29 +313,48 @@ h1 {
   color: var(--work-color);
 }
 
-/* 节假日下方的文字标注 (如: '休', '国庆节') */
-.holiday-text {
+/* 只有节日本日显示名称；其余放假日统一显示“休”。 */
+.festival-text,
+.holiday-text,
+.work-text {
   font-size: 9px;
-  color: var(--holiday-color);
   margin-top: 1px;
   font-weight: 600;
   white-space: nowrap;
+  max-width: calc(100% - 4px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.festival-text {
+  color: #271a02;
+  background: var(--festival-color);
+  padding: 0 3px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.holiday-text {
+  color: #fff1f2;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: #e11d48;
 }
 
 /* 补班下方的文字标注 (如: '班') */
 .work-text {
-  font-size: 9px;
-  color: var(--accent-color);
-  margin-top: 1px;
-  font-weight: 600;
-  white-space: nowrap;
+  color: #083344;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--makeup-color);
+  font-weight: 700;
 }
 
 /* 今天的特殊强高亮样式 */
 .day.today {
   background: var(--today-bg);
-  border: none;
-  box-shadow: 0 2px 10px rgba(168, 85, 247, 0.4);
+  border-color: rgba(199, 210, 254, 0.72);
+  box-shadow: 0 5px 16px rgba(37, 99, 235, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .day.today .date-num {
@@ -239,7 +367,7 @@ h1 {
   justify-content: space-between;
   align-items: center;
   padding: 10px 20px 15px;
-  border-top: 1px solid var(--glass-border);
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
   margin-top: auto;
 }
 
@@ -252,7 +380,7 @@ h1 {
 
 /* 回到今天按钮 */
 .today-btn {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(129, 140, 248, 0.12);
   border: 1px solid var(--glass-border);
   color: var(--text-primary);
   padding: 4px 10px;
@@ -263,5 +391,6 @@ h1 {
 }
 
 .today-btn:hover {
-  background: var(--accent-color);
+  background: rgba(129, 140, 248, 0.26);
+  border-color: rgba(129, 140, 248, 0.48);
 }

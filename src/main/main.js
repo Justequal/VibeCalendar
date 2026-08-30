@@ -5,11 +5,50 @@
  * renderer 目录。渲染进程不需要 Node.js 权限，因此保持隔离与沙箱开启。
  */
 const { app, BrowserWindow } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { checkForUpdates } = require('./updater');
 
+const LIVE_PREVIEW_ENABLED = process.argv.includes('--live-preview');
+const RENDERER_DIRECTORY = path.join(__dirname, '../renderer');
+
 // 禁用硬件加速：防止在特定 Windows 显卡环境下 GPU 进程崩溃 (0xC0000005)
 app.disableHardwareAcceleration();
+
+/**
+ * 开发模式下监听前端文件，保存后自动刷新 Electron 窗口。
+ * 监听器与窗口生命周期绑定，正式启动和安装包不会创建文件监听。
+ */
+function enableLivePreview(mainWindow) {
+  if (!LIVE_PREVIEW_ENABLED) return;
+
+  let reloadTimer;
+  const watcher = fs.watch(
+    RENDERER_DIRECTORY,
+    { recursive: true },
+    (eventType, filename) => {
+      if (!filename || !/\.(?:html|css|js|json)$/i.test(filename)) return;
+
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => {
+        if (mainWindow.isDestroyed()) return;
+        console.log(`🔄 前端文件已更新，刷新预览：${filename}`);
+        mainWindow.webContents.reloadIgnoringCache();
+      }, 100);
+    }
+  );
+
+  watcher.on('error', (error) => {
+    console.error('实时预览文件监听失败：', error);
+  });
+
+  mainWindow.once('closed', () => {
+    clearTimeout(reloadTimer);
+    watcher.close();
+  });
+
+  console.log('👀 实时预览已启用，正在监听 src/renderer');
+}
 
 /**
  * 创建主应用窗口
@@ -19,7 +58,7 @@ function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 340,
     height: 500,
-    title: 'Vibe Calendar', // 应用窗口标题
+    title: '氛围日历', // 中文默认窗口标题；英文界面加载后会切换为 Vibe Calendar
     center: true, // 启动时在屏幕正中央居中显示
     show: true, // 创建后立即显示，杜绝隐藏等待导致的假死问题
     alwaysOnTop: true, // 初始启动时强制置顶，确保弹到所有应用窗口最上方
@@ -52,6 +91,7 @@ function createWindow() {
 
   // 加载前端页面
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  enableLivePreview(mainWindow);
   return mainWindow;
 }
 

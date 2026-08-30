@@ -1,16 +1,17 @@
-# Vibe Calendar
+# 氛围日历（Vibe Calendar）
 
 [![Build](https://github.com/Justequal/VibeCalendar/actions/workflows/build.yml/badge.svg)](https://github.com/Justequal/VibeCalendar/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Vibe Calendar 是一个轻量的桌面日历，使用 Electron 和原生 Web 技术构建。它专注于快速查看日期、中国法定节假日与调休信息，并提供深色无边框的桌面挂件体验。
+氛围日历（Vibe Calendar）是一个轻量的桌面日历，使用 Electron 和原生 Web 技术构建。它专注于快速查看日期、中国法定节假日与调休信息，并提供深色无边框的桌面挂件体验。
 
 ## 功能
 
 - 固定 6 × 7 月历网格，稳定展示相邻月份日期
 - 中国法定节假日、休息日与调休补班标记
-- 周日或周一作为一周首日，偏好会在本机保存
-- 按钮、鼠标滚轮及键盘切换月份
+- 默认以周一作为一周首日，可切换为周日并在本机保存偏好
+- 默认中文界面，可通过界面按钮切换中英文并保存语言偏好
+- 鼠标滚轮按滚动幅度上下逐行（按星期）滚动，按钮及键盘切换月份
 - 实时时钟与快速回到今天
 - 无边框深色窗口和本机字体，支持离线首屏
 - Windows NSIS 安装包与可选 GitHub 自动更新
@@ -29,8 +30,12 @@ Vibe Calendar 是一个轻量的桌面日历，使用 Electron 和原生 Web 技
 
 ```bash
 npm install
-npm start
+npm run dev
 ```
+
+`npm run dev` 会打开 Electron 实时预览窗口。保持命令运行，在 Codex 或 VS Code
+保存 `src/renderer` 下的 HTML、CSS、JavaScript 后，预览窗口会自动刷新。主进程文件
+（`src/main`）变化后仍需重新运行该命令。
 
 应用启动后会立即使用内存或本地缓存渲染日历，节假日数据在后台刷新。网络不可用不会阻止基础日历显示。
 
@@ -39,6 +44,7 @@ npm start
 | 命令 | 说明 |
 | --- | --- |
 | `npm start` | 启动开发版 Electron 应用 |
+| `npm run dev` | 启动 Electron 实时预览，保存前端文件后自动刷新 |
 | `npm run preview:web` | 在 Windows 浏览器中预览静态页面（不含完整 Electron 行为） |
 | `npm test` | 运行日期领域层单元测试 |
 | `npm run check:syntax` | 检查主要 JavaScript 文件语法 |

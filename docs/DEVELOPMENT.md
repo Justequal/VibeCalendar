@@ -21,8 +21,12 @@ npm ci
 启动完整 Electron 应用：
 
 ```bash
-npm start
+npm run dev
 ```
+
+该命令会启动 Electron 实时预览。保持终端命令运行，保存 `src/renderer` 下的
+HTML、CSS、JavaScript 或 JSON 文件后，窗口会自动刷新。修改 `src/main` 中的主进程
+代码后需要停止并重新运行命令。
 
 静态页面预览（仅 Windows）：
 

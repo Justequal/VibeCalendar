@@ -3,6 +3,21 @@
 本文件记录 Vibe Calendar 各正式版本中用户可感知的变化。格式参考 Keep a Changelog，
 版本号遵循语义化版本。
 
+## [1.1.0] - 2026-08-30
+
+### 新增
+
+- 默认中文的“氛围日历”界面，以及可持久化的中英文切换
+- 鼠标滚轮按实际幅度上下逐行滚动日历
+- 节日本日、普通休假、周末与调休补班的独立语义标记和动态颜色图例
+- `npm run dev` Electron 实时预览，保存前端文件后自动刷新
+
+### 改进
+
+- 默认以周一作为一周首日，同时保留手动切换和偏好保存
+- 重新规划深色主题、日期卡片及状态颜色，提高对比度和可读性
+- 英文界面使用完整节日翻译，并以紧凑标签避免日期格文字截断
+
 ## [1.0.2] - 2026-08-30
 
 ### 修复
@@ -30,6 +45,7 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
+[1.1.0]: https://github.com/Justequal/VibeCalendar/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Justequal/VibeCalendar/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Justequal/VibeCalendar/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Justequal/VibeCalendar/releases/tag/v1.0.0

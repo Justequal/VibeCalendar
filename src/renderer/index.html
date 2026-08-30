@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 只允许本地脚本/样式，并明确限制节假日数据的联网范围。 -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src https://cdn.jsdelivr.net https://raw.githubusercontent.com https://timor.tech; img-src 'self' data:; object-src 'none'; base-uri 'none'">
-  <title>Vibe Calendar</title>
+  <title>氛围日历</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,9 +23,12 @@
     <div class="calendar-header">
       <button id="prev-month" class="nav-btn" aria-label="上个月" title="上个月（←）">←</button>
       <div class="header-center">
-        <h1 id="month-year">Month Year</h1>
-        <!-- 切换一星期的首日 (周一/周日) 按钮 -->
-        <button id="toggle-week-btn" class="toggle-week-btn" aria-label="切换一周起始日">1st: Sun</button>
+        <h1 id="month-year">年月</h1>
+        <div class="header-controls">
+          <!-- 切换一星期的首日 (周一/周日) 按钮 -->
+          <button id="toggle-week-btn" class="toggle-week-btn" aria-label="切换一周起始日">首日：周一</button>
+          <button id="language-toggle-btn" class="toggle-week-btn language-toggle-btn" aria-label="切换到英文" title="切换到英文">EN</button>
+        </div>
       </div>
       <button id="next-month" class="nav-btn" aria-label="下个月" title="下个月（→）">→</button>
     </div>
@@ -33,6 +36,12 @@
     <!-- 星期表头行 (日, 一, 二, 三...) -->
     <div class="weekdays" id="weekdays-container" aria-hidden="true">
       <!-- 这一块内容会由 JavaScript 动态生成渲染 -->
+    </div>
+
+    <div id="calendar-legend" class="calendar-legend" aria-label="标记说明">
+      <span><i class="legend-dot festival-dot"></i><span id="festival-legend">节日</span></span>
+      <span><i class="legend-badge day-off-badge"></i><span id="day-off-legend">休假</span></span>
+      <span><i class="legend-badge workday-badge"></i><span id="workday-legend">补班</span></span>
     </div>
 
     <!-- 核心日历网格区 (42 个格子的日期区) -->
@@ -43,7 +52,7 @@
     <!-- 底部功能栏：包含数字时钟与"回到今天"快捷按钮 -->
     <div class="footer">
       <div id="clock" class="clock">00:00:00</div>
-      <button id="go-today-btn" class="today-btn" title="快捷键 T">Go to Today</button>
+      <button id="go-today-btn" class="today-btn" title="快捷键 T">回到今天</button>
     </div>
   </div>
 
