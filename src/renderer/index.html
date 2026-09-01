@@ -54,7 +54,7 @@
       <div class="footer-info">
         <div id="clock" class="clock">00:00:00</div>
         <!-- 版本号按钮：点击展示最新版本更新公告模态框 -->
-        <button id="version-btn" class="version-btn" title="查看更新公告">v1.1.1</button>
+        <button id="version-btn" class="version-btn" title="查看更新公告">v…</button>
       </div>
       <div class="footer-actions">
         <!-- 手动检查更新按钮 -->
@@ -80,9 +80,12 @@
     </div>
   </div>
 
-  <!-- 加载顺序：纯日期逻辑 → 节假日数据服务 → 界面控制器。 -->
+  <!-- 加载顺序：领域逻辑与词典 → 数据服务与独立功能控制器 → 页面渲染。 -->
   <script src="calendar-core.js"></script>
+  <script src="interaction-core.js"></script>
+  <script src="translations.js"></script>
   <script src="holidays.js"></script>
+  <script src="update-controller.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

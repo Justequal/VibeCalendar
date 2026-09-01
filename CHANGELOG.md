@@ -3,6 +3,27 @@
 本文件记录 Vibe Calendar 各正式版本中用户可感知的变化。格式参考 Keep a Changelog，
 版本号遵循语义化版本。
 
+## [Unreleased]
+
+## [1.1.2] - 2026-09-01
+
+### 改进
+
+- 将界面文案和更新交互从日历渲染器拆分为独立模块，减少重复职责，并在快速滚动时按动画帧合并重绘
+- 优化 42 格日期生成与农历格式化复用，在夏令时边界或运行环境不支持中国农历时安全降级
+- 节假日服务支持依赖注入和独立测试，增加远端/缓存数据校验、损坏缓存自愈、并发复用、只读结果及最多 12 年的内存缓存上限
+- 更新服务增加请求超时、短期缓存、并发复用、重复安装提示抑制和更完整的语义版本比较
+- 更新 IPC 限制为应用本地页面调用，Release 字段和链接经过收窄后再传给界面
+- 更新公告弹层优化标题显示、常见 Markdown 的纯文本呈现和关闭后的焦点恢复
+
+### 测试
+
+- 增加节假日、滚轮输入、主进程、渲染模块和 Electron 冒烟测试，覆盖缓存、并发、离线恢复、实时预览、语言、导航、版本公告与更新流程
+
+### 文档
+
+- 重写架构、开发、贡献与发布文档，明确实时预览、更新机制、安全边界、验证流程和标签发布条件
+
 ## [1.1.1] - 2026-08-30
 
 ### 新增
@@ -58,6 +79,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/Justequal/VibeCalendar/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/Justequal/VibeCalendar/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Justequal/VibeCalendar/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Justequal/VibeCalendar/compare/v1.0.1...v1.0.2

@@ -3,18 +3,19 @@
 [![Build](https://github.com/Justequal/VibeCalendar/actions/workflows/build.yml/badge.svg)](https://github.com/Justequal/VibeCalendar/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-氛围日历（Vibe Calendar）是一个轻量的桌面日历，使用 Electron 和原生 Web 技术构建。它专注于快速查看日期、中国法定节假日与调休信息，并提供深色无边框的桌面挂件体验。
+氛围日历是一款轻量的桌面月历，使用 Electron 与原生 HTML、CSS、JavaScript 构建。它专注于快速查看日期、中国法定节假日和调休安排，并以简约、清晰的深色桌面挂件形式呈现。
 
-## 功能
+## 主要功能
 
-- 固定 6 × 7 月历网格，稳定展示相邻月份日期
-- 中国法定节假日、休息日与调休补班标记
-- 默认以周一作为一周首日，可切换为周日并在本机保存偏好
-- 默认中文界面，可通过界面按钮切换中英文并保存语言偏好
-- 鼠标滚轮按滚动幅度上下逐行（按星期）滚动，按钮及键盘切换月份
-- 实时时钟与快速回到今天
-- 无边框深色窗口和本机字体，支持离线首屏
-- Windows NSIS 安装包与可选 GitHub 自动更新
+- 固定 6 × 7 日期网格，连续展示相邻月份日期
+- 区分节日本日、普通休假、周末和调休补班；普通周末与法定休假使用一致的休息色
+- 默认以周一为一周首日，可手动切换为周日并保存本机偏好
+- 默认中文界面，可切换中英文；星期、月份、节日、图例和操作文案会同步切换
+- 鼠标滚轮按实际滚动幅度逐行（逐星期）移动，快速滚动不会只移动一行
+- 月份按钮、方向键、实时钟和“回到今天”快捷操作
+- 底部显示当前应用版本；点击版本号可查看 GitHub 上最新正式版本的更新公告
+- 提供手动检查更新；安装版还会在启动时静默检查并在后台下载新版本
+- 无边框固定尺寸窗口、离线可用的基础日历和节假日缓存降级
 
 键盘快捷键：
 
@@ -22,151 +23,131 @@
 | --- | --- |
 | `←` / `→` | 上一个月 / 下一个月 |
 | `T` | 回到今天 |
+| `Esc` | 关闭更新公告 |
 
-## 开发环境
+## 快速开始
 
-- Node.js 20 或更高版本
-- Windows、macOS 或 Linux
+需要 Node.js 20 或更高版本。
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-`npm run dev` 会打开 Electron 实时预览窗口。保持命令运行，在 Codex 或 VS Code
-保存 `src/renderer` 下的 HTML、CSS、JavaScript 后，预览窗口会自动刷新。主进程文件
-（`src/main`）变化后仍需重新运行该命令。
+`npm run dev` 会打开完整的 Electron 实时预览窗口。保持命令运行，保存 `src/renderer`
+中的 HTML、CSS、JavaScript 或 JSON 文件后，窗口会自动刷新；修改 `src/main` 下的主进程或
+Preload 文件后，需要停止并重新启动开发命令。
 
-应用启动后会立即使用内存或本地缓存渲染日历，节假日数据在后台刷新。网络不可用不会阻止基础日历显示。
+应用会先用内存或本地缓存同步绘制日历，再在后台刷新可见年份的节假日数据。因此网络不可用时，基础日历仍可立即使用。
 
 ## 常用命令
 
 | 命令 | 说明 |
 | --- | --- |
-| `npm start` | 启动开发版 Electron 应用 |
+| `npm start` | 启动开发版 Electron 应用，不监听文件变化 |
 | `npm run dev` | 启动 Electron 实时预览，保存前端文件后自动刷新 |
-| `npm run preview:web` | 在 Windows 浏览器中预览静态页面（不含完整 Electron 行为） |
-| `npm test` | 运行日期领域层单元测试 |
-| `npm run check:syntax` | 检查主要 JavaScript 文件语法 |
-| `npm run verify` | 依次执行语法检查和测试 |
+| `npm run preview:web` | 在 Windows 默认浏览器中打开静态页面；不包含 Electron 更新能力 |
+| `npm test` | 运行 Node.js 单元测试 |
+| `npm run test:ui` | 在隐藏的真实 Electron 窗口中运行关键交互冒烟测试 |
+| `npm run test:update-network` | 联网验证 GitHub 最新公告与开发版手动检查更新 |
+| `npm run check:syntax` | 检查项目 JavaScript 语法 |
+| `npm run verify` | 依次执行语法检查和全部测试 |
+| `npm run verify:full` | 在 `verify` 后追加真实 Electron 与联网更新冒烟测试 |
 | `npm run pack` | 生成未安装的应用目录 |
-| `npm run build` | 在 `dist/` 生成平台安装包 |
+| `npm run build` | 在 `dist/` 生成 Windows NSIS 安装包和更新元数据 |
 
-CI 分为快速验证和 Windows 打包两层：Pull Request 只执行语法检查与单元测试；合并到
-`main` 后才构建可供冒烟测试的 Windows 安装包。
+完整开发、验证和排错流程见 [开发指南](docs/DEVELOPMENT.md)。
 
-## 目录结构
+## 项目结构
 
 ```text
 VibeCalendar/
-├── .github/workflows/build.yml   # Windows 验证与打包
-├── docs/ARCHITECTURE.md          # 架构、数据流和扩展约定
+├── .github/workflows/           # 持续集成与正式发布
+├── docs/                        # 架构、开发和发布文档
 ├── src/
 │   ├── main/
-│   │   ├── main.js               # Electron 窗口与生命周期
-│   │   └── updater.js            # 可选的 GitHub 自动更新
-│   ├── assets/
-│   │   ├── icon.png              # 高清透明图标源文件
-│   │   └── icon.ico              # Windows 多尺寸应用图标
-│   └── renderer/
-│       ├── calendar-core.js      # 无副作用的日期计算
-│       ├── holidays.js           # 节假日数据、缓存与降级
-│       ├── renderer.js           # 页面状态、渲染与事件
-│       ├── index.html            # 页面结构与安全策略
-│       └── style.css             # 视觉样式
-├── test/calendar-core.test.js    # 日期计算单元测试
+│   │   ├── main.js              # Electron 生命周期、窗口、IPC 与实时预览
+│   │   ├── preload.js           # 受控的版本和更新能力桥接
+│   │   └── updater.js           # Release 查询与自动更新服务
+│   ├── renderer/
+│   │   ├── calendar-core.js     # 无副作用的日期领域计算
+│   │   ├── interaction-core.js  # 滚轮单位换算与行数累计
+│   │   ├── holidays.js          # 节假日请求、校验、缓存与降级
+│   │   ├── translations.js      # 中英文用户界面文案
+│   │   ├── update-controller.js # 版本、检查更新和公告弹层交互
+│   │   ├── renderer.js          # 日历状态、DOM 渲染与输入事件
+│   │   ├── index.html           # 页面结构与内容安全策略
+│   │   └── style.css            # 深色视觉系统与组件样式
+│   └── assets/                  # 应用和安装器图标
+├── scripts/
+│   ├── ui-smoke.js              # 真实 Electron 界面冒烟测试
+│   └── update-network-smoke.js  # GitHub 更新服务联网冒烟测试
+├── test/
+│   ├── calendar-core.test.js    # 日期与节日本日计算
+│   ├── holiday-service.test.js  # 数据校验、缓存、并发与降级
+│   ├── interaction-core.test.js # 慢速/快速滚轮幅度换算
+│   ├── main-process.test.js      # 启动检查、IPC 与实时预览
+│   ├── renderer-modules.test.js # 翻译词典与更新界面控制器
+│   └── updater.test.js          # 版本比较、Release 与更新服务
+├── CHANGELOG.md                 # 用户可感知的版本变化
 └── package.json
 ```
 
-详细设计参见 [架构说明](docs/ARCHITECTURE.md)。
+模块职责、数据流和扩展边界见 [架构说明](docs/ARCHITECTURE.md)。
 
 ## 节假日数据
 
-当前使用两个独立提供方：
+应用使用两个独立提供方：
 
-1. `NateScarlet/holiday-cn`：jsDelivr 和 GitHub Raw 是同一份数据的镜像，只作为一个提供方。
-2. `timor.tech`：用于补充主数据中缺失的特殊日期。
+1. `NateScarlet/holiday-cn`：jsDelivr 与 GitHub Raw 是同一数据集的镜像，只计作一个提供方。
+2. `timor.tech`：补充主数据集中缺失的特殊日期。
 
-请求超时为 5 秒，成功数据在 `localStorage` 缓存 30 天。同一年并发请求会复用一个 Promise。两个远程提供方都不可用时，依次使用过期缓存和固定日期兜底；兜底数据不会猜测农历节日或调休。
+远程请求设有超时。成功数据写入 `localStorage` 并缓存 30 天；同一年份的并发请求会复用同一个任务。远程提供方均不可用时，应用优先使用过期缓存，最后退回到固定公历日期的最小数据集。兜底数据不会猜测农历节日或调休安排。
 
-## 安全边界
+## 版本与更新
 
-- 渲染进程关闭 Node.js 集成
-- 开启上下文隔离、渲染进程沙箱和 Web 安全策略
-- CSP 只允许本地脚本/样式，以及指定节假日 API 的 HTTPS 请求
-- 禁止页面导航和创建新窗口
-- 不加载远程字体或远程脚本
-- 当前 Windows 方案关闭 GPU 硬件加速，以规避部分显卡环境中的启动崩溃
+| 场景 | 启动检查 | 点击版本号 | 手动“检查更新” |
+| --- | --- | --- | --- |
+| 开发模式 | 不访问更新服务 | 读取 GitHub 最新正式 Release 公告 | 只比较 GitHub 最新版本，不下载或安装 |
+| 已安装的正式版本 | 静默检查并在有新版本时后台下载 | 读取 GitHub 最新正式 Release 公告 | 立即重新检查；有更新时开始后台下载 |
+| 静态网页预览 | 不支持 | 入口隐藏 | 入口隐藏 |
 
-如果以后需要系统能力，应通过最小化的 preload API 和 `contextBridge` 暴露，不要重新开启完整 Node.js 集成。
+后台下载完成后，应用会提示“重启并安装”或“稍后”。选择“稍后”时，更新将在应用正常退出时安装。更新公告取自 GitHub Release 正文，并保留发布者编写时的语言；界面本身仍会随中英文设置切换。
+
+自动更新依赖公开 Release 中完整的安装程序、`latest.yml` 和 blockmap 文件。网络错误或更新服务故障只会影响更新相关操作，不会阻止日历使用。
 
 ## 安装与下载
 
-### 方式 1：Windows 官方包管理器（Winget 一键安装）
+如果 `Justequal.VibeCalendar` 已在当前 Winget 源中上架，可以使用：
 
 ```powershell
 winget install Justequal.VibeCalendar
 ```
 
-### 方式 2：GitHub Releases 手动下载安装
-
-前往 [Releases](https://github.com/Justequal/VibeCalendar/releases) 页面下载最新的 `Vibe-Calendar-Setup-*.exe` 安装包。
+若 Winget 尚未检索到该包，请前往 [GitHub Releases](https://github.com/Justequal/VibeCalendar/releases) 下载最新的 `Vibe-Calendar-Setup-*.exe`。
 
 > [!NOTE]
-> **Windows 安全提示说明**：
-> 由于开源项目未购买昂贵的商业代码签名证书，下载或首次运行安装包时 Windows SmartScreen 可能弹出“已保护你的电脑 / 未知发布者”提示。
-> 请点击弹窗中的 **「更多信息」 $\to$ 「仍要运行」** 即可正常安装。
+> 当前安装包可能未进行商业代码签名。Windows SmartScreen 显示“未知发布者”时，请先确认下载地址和 Release 来源可信，再决定是否运行。
 
-## 自动更新
+## 持续集成与发布
 
-安装版应用每次启动都会静默检查 GitHub Releases。发现新版本后会自动在后台下载，
-下载期间日历可以继续使用；安装包准备完成后，应用才会提醒用户选择“重启并安装”
-或“稍后”。选择“稍后”时，更新会在应用下次正常退出时安装。
+- Pull Request：执行语法检查和单元测试。
+- 推送到 `main`：再次验证，并生成保留 7 天的 Windows 冒烟构建产物。
+- 推送与 `package.json` 版本一致的 `v*.*.*` 标签：构建正式安装包并创建 GitHub Release。
 
-用户亦可随时点击界面底部的“检查更新”按钮进行手动检查，或点击版本号查看最新版本更新公告。
-自动更新只在安装后的打包版本中启用，开发模式不会访问更新服务。
+普通的 `git push` 不会自动发布正式版本；只有向远端推送符合规则的版本标签才会触发 Release 工作流。完整操作和失败处理见 [发布指南](docs/RELEASING.md)。
 
+## 安全边界
 
-## 发布新版本
+- 渲染进程关闭 Node.js 集成，开启上下文隔离、沙箱和 Web 安全策略
+- Preload 只公开获取版本、读取最新公告和检查更新三个单一用途接口
+- CSP 只允许本地脚本和样式，以及明确列出的节假日数据 HTTPS 地址
+- 主窗口禁止页面导航和创建新窗口
+- Release 正文使用纯文本呈现，不作为 HTML 执行
+- 当前 Windows 方案关闭 GPU 硬件加速，以规避部分显卡环境中的启动崩溃
 
-发布由 [GitHub Actions](.github/workflows/release.yml) 自动完成。版本号遵循语义化版本，
-Git 标签必须与 `package.json` 中的版本完全一致。例如发布补丁版本：
+## 参与贡献
 
-```bash
-npm version patch
-git push origin main --follow-tags
-```
+项目采用轻量主干开发：`main` 是唯一长期分支，功能和修复通过短期分支与 Pull Request 合并。提交前请运行 `npm run verify`，并在行为变化时同步更新测试和文档。详细约定见 [贡献指南](CONTRIBUTING.md)，版本变化见 [CHANGELOG](CHANGELOG.md)。
 
-推送 `v*.*.*` 标签后，Actions 会先验证和测试源码，再构建 Windows NSIS 安装包，
-并创建公开 GitHub Release。Release 中的安装包、`latest.yml` 和 blockmap 文件共同
-支持应用内的自动检查与后台差分下载。普通开发不会发布 Release：Pull Request 只做
-快速验证；`main` 会额外生成用于冒烟测试的短期构建产物。完整流程与版本选择参见
-[发布指南](docs/RELEASING.md)。
-
-## 开发与分支
-
-项目采用轻量主干开发：`main` 是唯一长期分支，功能和修复从短期 `feat/*`、`fix/*`
-分支通过 Pull Request 合并。当前规模不维护长期 `develop` 分支，以避免额外的同步和
-回合并成本。具体约定参见 [贡献指南](CONTRIBUTING.md)，版本变化记录在
-[CHANGELOG](CHANGELOG.md)。
-
-## 打包
-
-```bash
-npm run verify
-npm run build
-```
-
-安装包输出到 `dist/`。CI 构建显式使用 `--publish never`，因此普通分支和 Pull Request 不会意外发布 Release。
-
-## 开源许可
-
-项目使用 [MIT License](LICENSE)。欢迎提交 Issue 和 Pull Request。
-
-## 维护原则
-
-- 日期计算保持为纯函数，并为边界条件补测试。
-- 网络失败不得阻塞基础日历。
-- 主进程只管理系统能力，渲染层只管理页面。
-- 注释解释设计原因和边界条件，不重复代码本身。
-- 新增外部域名时同步审查 `index.html` 中的 CSP。
+项目使用 [MIT License](LICENSE)。

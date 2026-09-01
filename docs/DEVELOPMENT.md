@@ -1,12 +1,12 @@
-# Vibe Calendar 开发与发布流程
+# Vibe Calendar 开发指南
 
-本文记录从获取代码、日常开发、测试、CI、打包到正式发布和自动更新的完整流程。命令和目录以当前仓库为准。
+本文覆盖本地环境、实时预览、代码职责、验证方法和常见排错。架构边界见 [ARCHITECTURE.md](ARCHITECTURE.md)，正式版本流程见 [RELEASING.md](RELEASING.md)。
 
 ## 1. 环境准备
 
 - Node.js 20 或更高版本
 - npm 与 Git
-- Windows（本地生成 NSIS 安装包时需要）
+- Windows（生成和完整验证 NSIS 安装包时需要）
 
 ```bash
 git clone https://github.com/Justequal/VibeCalendar.git
@@ -14,139 +14,216 @@ cd VibeCalendar
 npm ci
 ```
 
-`npm ci` 严格使用 `package-lock.json`，适合首次安装、CI 和发布构建。只有新增或升级依赖时才使用 `npm install`。
+`npm ci` 严格使用 `package-lock.json`，适合首次安装、CI 和发布构建。只有明确新增或升级依赖时才使用 `npm install`，并同时提交更新后的锁文件。
 
-## 2. 本地开发
+## 2. 运行方式
 
-启动完整 Electron 应用：
+| 命令 | 运行环境 | 自动刷新 | 更新功能 |
+| --- | --- | --- | --- |
+| `npm start` | Electron 开发模式 | 否 | 可查看公告、手动比较版本；不下载安装 |
+| `npm run dev` | Electron 开发模式 | 是，仅 `src/renderer` | 可查看公告、手动比较版本；不下载安装 |
+| `npm run preview:web` | Windows 默认浏览器 | 浏览器自身行为 | 版本号和更新入口隐藏 |
+
+推荐日常使用：
 
 ```bash
 npm run dev
 ```
 
-该命令会启动 Electron 实时预览。保持终端命令运行，保存 `src/renderer` 下的
-HTML、CSS、JavaScript 或 JSON 文件后，窗口会自动刷新。修改 `src/main` 中的主进程
-代码后需要停止并重新运行命令。
+保存 `src/renderer` 下的 HTML、CSS、JavaScript 或 JSON 后，Electron 窗口会自动刷新。连续保存事件会被合并，避免一次编辑触发多次重载。
 
-静态页面预览（仅 Windows）：
+以下修改需要停止并重新运行命令：
 
-```bash
-npm run preview:web
-```
+- `src/main/main.js`、`preload.js` 或 `updater.js`
+- `package.json` 或依赖
+- 启动参数、窗口配置和 IPC 通道
 
-静态预览只适合检查 HTML/CSS，不代表完整的 Electron 窗口、沙箱和自动更新行为。
+静态网页预览只适合快速检查布局和普通日历交互。它不能代表 Electron 的窗口样式、沙箱、Preload、IPC 或安装更新行为。
 
-### 代码职责
+## 3. 代码职责速查
 
-| 文件 | 职责 |
-| --- | --- |
-| `src/main/main.js` | Electron 窗口、生命周期和安全边界 |
-| `src/main/updater.js` | 安装版自动更新 |
-| `src/renderer/calendar-core.js` | 无副作用的日期计算 |
-| `src/renderer/holidays.js` | 节假日请求、缓存、合并和降级 |
-| `src/renderer/renderer.js` | 页面状态、DOM 渲染和交互 |
-| `src/renderer/style.css` | 视觉样式 |
-| `src/assets/` | PNG 源图标和 Windows ICO |
-| `test/` | Node.js 内置测试 |
+| 文件 | 职责 | 不应包含 |
+| --- | --- | --- |
+| `src/main/main.js` | 窗口、生命周期、IPC、实时预览 | 日期规则、DOM |
+| `src/main/preload.js` | 最小化的更新能力桥接 | 通用 Node.js 或原始 IPC 暴露 |
+| `src/main/updater.js` | Release 查询、版本比较、自动更新 | DOM 和界面状态 |
+| `src/renderer/calendar-core.js` | 纯日期计算、节日本日判定 | 网络、DOM、存储 |
+| `src/renderer/interaction-core.js` | 滚轮单位换算与行数累计 | DOM 渲染与页面状态 |
+| `src/renderer/holidays.js` | 数据校验、请求、缓存、合并和降级 | 视觉样式 |
+| `src/renderer/translations.js` | 中英文界面文案 | 业务状态和事件 |
+| `src/renderer/update-controller.js` | 版本、检查更新、公告弹层 | 日历网格渲染 |
+| `src/renderer/renderer.js` | 日历状态、DOM、偏好和输入 | Electron 原生调用 |
+| `src/renderer/style.css` | 色彩、布局、组件状态 | 业务判断 |
+| `test/` | 可重复的领域与服务测试 | 真实用户数据、外部服务依赖 |
 
-扩展前先阅读 [架构说明](ARCHITECTURE.md)。日期算法应保持为纯函数，系统能力不要直接暴露给渲染进程。
+开始修改前先确定归属层。若一个功能同时涉及系统能力和界面，应让主进程返回窄而稳定的数据结构，再由对应渲染控制器展示。
 
-## 3. 修改后的验证
+## 4. 推荐开发流程
 
-```bash
-npm run verify
-npm audit
-git diff --check
-```
-
-`npm run verify` 会检查主要 JavaScript 文件语法并运行全部单元测试。日期边界、跨年、节假日合并和缓存降级属于高风险逻辑，修改时应同步增加测试。
-
-## 4. 分支与 Pull Request
-
-`main` 是长期分支，功能或修复使用短期分支：
+1. 从最新 `main` 创建短期分支。
+2. 先写清楚行为变化和边界条件。
+3. 把纯计算或服务逻辑放在可测试模块中，再连接界面。
+4. 使用 `npm run dev` 进行交互验证。
+5. 为逻辑变化增加或更新测试。
+6. 同步修改 README、专题文档和 CHANGELOG（如适用）。
+7. 执行完整本地验证后再提交。
 
 ```bash
 git switch main
 git pull --ff-only
 git switch -c feat/short-description
-```
 
-完成修改后：
-
-```bash
 npm run verify
-git add <changed-files>
-git commit -m "feat: describe the change"
-git push -u origin feat/short-description
+git diff --check
 ```
 
-Pull Request 应说明修改内容、验证命令和潜在影响。不要提交 `node_modules/`、`dist/` 或密钥。
+`npm audit` 需要访问 npm 服务，适合作为依赖变更或发布前的补充检查，不替代 `npm run verify`。
 
-## 5. CI 流程
-
-配置文件是 [.github/workflows/build.yml](../.github/workflows/build.yml)。Pull Request 会在 Ubuntu 上执行 `npm ci --ignore-scripts` 和 `npm run verify`；合并到 `main` 后，Windows 任务会构建并上传 EXE、blockmap 和 `latest.yml` 作为短期构建产物。
-
-CI 构建不会创建正式 GitHub Release，也不会更新用户设备。
-
-## 6. 本地打包
+## 5. 自动化验证
 
 ```bash
-npm run pack    # 生成未安装的应用目录
-npm run build   # 生成 Windows NSIS 安装包
-```
-
-默认输出到 `dist/`：
-
-```text
-Vibe-Calendar-Setup-1.0.2.exe
-Vibe-Calendar-Setup-1.0.2.exe.blockmap
-latest.yml
-```
-
-`.blockmap` 和 `latest.yml` 是自动更新元数据，不是用户单独运行的文件。
-
-## 7. 正式发布
-
-发布由 [.github/workflows/release.yml](../.github/workflows/release.yml) 负责。推荐使用 `npm version`，它会同步更新两个 package 文件、创建提交和版本标签：
-
-```bash
-git switch main
-git pull --ff-only
-npm version patch -m "chore(release): v%s"
-git push origin main --follow-tags
-```
-
-发布新功能或不兼容版本时，把 `patch` 换成 `minor` 或 `major`。Tag 必须和版本号一致，例如 `package.json` 为 `1.1.0` 时，Tag 必须是 `v1.1.0`。
-
-推送 `v*.*.*` 标签后，Release 工作流会验证版本、运行测试、构建安装包、创建 GitHub Release，并上传 EXE、`.blockmap` 和 `latest.yml`。公开标签不要复用；失败后增加修订版本重新发布。
-
-## 8. 自动更新
-
-已安装的正式版本启动后会读取 GitHub Release 的 `latest.yml`，发现更高版本后后台下载，准备完成时提示重启安装。用户不需要手动下载 `.blockmap`。
-
-自动更新需要使用安装版、Release 文件完整、版本号更高且仓库配置正确。开发模式会跳过更新检查。正式分发前还应配置 Windows 代码签名，避免 SmartScreen 警告。
-
-## 9. 图标替换
-
-- `src/assets/icon.png`：窗口和任务栏使用的高清源图
-- `src/assets/icon.ico`：Windows EXE、安装器和卸载器使用的多尺寸图标
-
-替换后执行：
-
-```bash
+npm run check:syntax
+npm test
 npm run verify
+npm run test:ui
+npm run test:update-network
+npm run verify:full
+```
+
+- `check:syntax` 使用 Node.js 解析项目 JavaScript，适合快速发现语法错误。
+- `npm test` 使用 Node.js 内置测试运行器，不启动 Electron 窗口。
+- `verify` 顺序执行上述两项，是提交和 Pull Request 前的最低要求。
+- `test:ui` 启动隐藏的真实 Electron 窗口，验证关键 DOM、Preload 和交互链路，不访问真实更新服务。
+- `test:update-network` 使用真实 GitHub Releases API 验证公告与手动检查，适合发布前联网执行，不放入离线 CI 的最低检查。
+- `verify:full` 串行执行单元、Electron 界面和真实更新网络检查，适合发布前在 Windows 上执行。
+
+当前测试重点：
+
+| 测试区域 | 需要覆盖的边界 |
+| --- | --- |
+| 日期计算 | 月底、闰年、跨年、周一/周日首日、42 格连续性、逐周窗口 |
+| 滚轮输入 | 像素/行/页面模式、余量累计、快速多行与反向滚动 |
+| 节假日 | 输入校验、缓存命中与过期、并发复用、来源冲突、离线降级、失败后重试 |
+| 更新 | 开发版与安装版差异、重复手动检查、版本比较、超时/失败、Release 解析 |
+| 主进程 | 安全窗口配置、启动自动检查、IPC 来源校验、实时预览文件筛选与刷新合并 |
+| Electron 界面 | 版本号、公告、焦点、语言、周首日、导航、快速滚轮与手动更新状态 |
+
+`npm test` 与 `test:ui` 不得依赖真实 GitHub 或节假日 API 的实时响应。网络、存储、时钟和 Electron 对象应使用注入或模拟，以保持离线和 CI 结果稳定；只有显式的 `test:update-network` 执行真实联网检查。
+
+## 6. 人工验证清单
+
+### 日历与滚动
+
+- [ ] 首次启动默认中文、周一为首日
+- [ ] 切换语言和周首日后，重新启动仍保留偏好
+- [ ] 左右按钮与方向键按月切换
+- [ ] 慢速滚轮逐行移动，快速滚轮按幅度移动多行
+- [ ] 快速跨月、跨年后标题、弱化日期和节假日仍对应正确
+- [ ] `T` 和“回到今天”恢复当前日期窗口
+
+### 节假日与视觉
+
+- [ ] 真正节日本日与假期内普通休息日显示不同语义
+- [ ] 普通周末和普通休假使用同一休息色
+- [ ] 调休补班、今天、相邻月份日期对比清晰
+- [ ] 中文/英文图例、悬停提示和无障碍文本同步切换
+- [ ] 离线启动仍显示基础日历；缓存或兜底数据不会被误称为完整调休表
+
+### 版本与更新
+
+- [ ] 底部版本号等于 `package.json` / `app.getVersion()`
+- [ ] 点击版本号可打开公告，`Esc`、关闭按钮和遮罩可关闭
+- [ ] 公告打开后焦点进入弹层，关闭后返回版本按钮
+- [ ] 中英文切换会更新公告界面文案，但不改写 Release 正文
+- [ ] 手动检查期间按钮不可重复触发，结束后恢复
+- [ ] 网络失败显示错误提示，日历本身继续可用
+
+开发模式只能验证 GitHub 最新版本查询和状态文案，不能证明安装包下载、差分更新或重启安装可用。完整更新链路必须使用已安装的旧正式版本，对一个更高版本的公开 Release 做隔离测试。
+
+## 7. 开发更新功能
+
+更新相关的三条调用路径不要混淆：
+
+1. **启动检查**：正式安装版调用 `electron-updater`；开发版直接跳过。
+2. **点击版本号**：两种 Electron 模式都调用 GitHub `releases/latest`，只读取公告。
+3. **手动检查**：开发版读取 Release 并比较版本；正式安装版调用 `electron-updater`，发现更新后自动下载。
+
+GitHub API 不可用、请求超时或达到匿名访问限制时，公告和手动检查可以失败，这是可恢复状态。不要在渲染层直接增加 GitHub 域名或关闭 CSP；该请求应继续由主进程完成。
+
+公告查询默认设置 10 秒超时，并对成功结果缓存 5 分钟；并发查询共享同一个请求。开发模式的手动检查会绕过公告缓存并重新请求，以获得适合版本判断的最新结果。Release 文本有长度上限，链接只接受 GitHub HTTPS 地址。调整这些规则时要补充超时、缓存复用、强制刷新和恶意字段测试。
+
+修改 IPC 时需要同步检查四处：
+
+- `main.js` 中的 `ipcMain.handle`
+- `preload.js` 中公开的方法
+- `update-controller.js` 中的调用方
+- `test/updater.test.js` 中的服务行为
+
+同时保留 IPC 的本地页面调用者校验，不能只依赖窗口导航限制。
+
+## 8. 开发节假日功能
+
+外部记录进入缓存前必须先标准化和校验，页面只消费统一的日期索引。增加提供方时：
+
+1. 为新格式编写标准化函数和无效输入测试；
+2. 明确它是独立数据源还是现有源的镜像；
+3. 定义冲突优先级，不用不透明的“多数投票”；
+4. 保证全部远端失败时仍能返回缓存或最小兜底；
+5. 如果请求来自渲染进程，同步收紧地更新 `index.html` 的 `connect-src`。
+
+缓存结构变化时升级缓存版本前缀。读取失败、JSON 损坏或写入空间不足都应被视为缓存未命中，不能让渲染中断。
+
+## 9. 国际化与可访问性
+
+- 新增用户可见文案时，在 `translations.js` 的中文和英文对象中同时补齐键。
+- 界面语言使用 `zh-CN` 和 `en`；偏好保存在带命名空间的 `localStorage` 键中。
+- 日期格中的短标签服务于有限空间，完整语义应保留在图例、`title` 或 `aria-label`。
+- 模态弹层应管理初始焦点、关闭方式和焦点返回。
+- 远程内容使用 `textContent`；不要用 `innerHTML` 渲染 Release 或节假日文本。
+
+## 10. CI 与本地打包
+
+CI 配置位于 `.github/workflows/`：
+
+- Pull Request 在 Ubuntu 上安装依赖并运行 `npm run verify`。
+- `main` 分支推送通过验证后，在 Windows 上执行 `npm run build -- --publish never`，上传保留 7 天的冒烟产物。
+- 版本标签由独立 Release 工作流处理，普通 CI 不创建 GitHub Release。
+
+本地打包：
+
+```bash
+npm run pack
 npm run build
 ```
 
-## 10. 发布前检查
+`dist/` 中常见文件：
 
-- [ ] `npm run verify` 通过
-- [ ] 手动检查当月、跨月、跨年和周一首日排列
-- [ ] 检查节假日和调休标记
-- [ ] 检查图标在小尺寸下仍清晰
-- [ ] 版本号、Tag 和 Release 名称一致
-- [ ] Release 包含 EXE、`.blockmap` 和 `latest.yml`
-- [ ] 已确认自动更新只在正式安装版启用
-- [ ] 面向真实用户发布时已配置代码签名
+```text
+Vibe-Calendar-Setup-<version>.exe
+Vibe-Calendar-Setup-<version>.exe.blockmap
+latest.yml
+```
 
-架构边界和扩展约定见 [ARCHITECTURE.md](ARCHITECTURE.md)，版本发布细节见 [RELEASING.md](RELEASING.md)。
+`latest.yml` 和 blockmap 是自动更新元数据，不是用户单独运行的文件。构建输出、`node_modules/` 和密钥不得提交到仓库。
+
+## 11. 常见问题
+
+### 保存文件后没有刷新
+
+确认运行的是 `npm run dev`，并且修改位于 `src/renderer`。主进程、Preload、依赖或配置变化需要重启开发命令。
+
+### 浏览器预览看不到版本号和更新按钮
+
+这是预期行为。静态网页没有 Electron Preload 提供的 `window.appUpdates`，更新控制器会隐藏相关入口。请使用 `npm run dev` 测试它们。
+
+### 手动检查显示最新，但没有下载
+
+开发模式只做版本比较，不执行安装流程。需要在正式安装版中测试下载。
+
+### 日历能显示，但节假日不完整
+
+检查网络请求日志和缓存来源。远端失败时应用会使用过期缓存或最小固定日期兜底，后者不包含农历节日与调休安排。
+
+### Release 公告内容没有随界面变成英文或中文
+
+这是预期行为。公告正文直接来自 GitHub Release，应用只翻译弹层自身的按钮、标题和状态文案。

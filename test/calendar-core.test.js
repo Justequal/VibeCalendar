@@ -98,6 +98,25 @@ test('滚动日期窗口以锚点所在周开头并保持 6 行', () => {
   });
 });
 
+test('日期窗口跨越闰日时仍保持逐日连续', () => {
+  const cells = CalendarCore.buildWeekWindowCells(
+    new Date(2024, 1, 29),
+    true
+  );
+
+  for (let index = 1; index < cells.length; index += 1) {
+    const previous = cells[index - 1];
+    const expected = CalendarCore.addDays(
+      new Date(previous.year, previous.month, previous.day),
+      1
+    );
+    assert.deepEqual(
+      [cells[index].year, cells[index].month, cells[index].day],
+      [expected.getFullYear(), expected.getMonth(), expected.getDate()]
+    );
+  }
+});
+
 test('toDateKey 对月份和日期补零', () => {
   assert.equal(CalendarCore.toDateKey(2026, 0, 5), '2026-01-05');
 });

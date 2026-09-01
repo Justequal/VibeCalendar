@@ -6,23 +6,30 @@
  */
 const { contextBridge, ipcRenderer } = require('electron');
 
+// 预加载层只允许调用这三个固定频道，不向页面暴露通用 ipcRenderer。
+const IPC_CHANNELS = Object.freeze({
+  getVersion: 'app:get-version',
+  getLatestRelease: 'updates:get-latest-release',
+  checkForUpdates: 'updates:check'
+});
+
 // 向渲染层 window 暴露 appUpdates 命名空间，提供版本查询与更新能力
 contextBridge.exposeInMainWorld('appUpdates', Object.freeze({
   /**
    * 获取当前运行的应用版本号
    * @returns {Promise<string>} 语义化版本号字符串
    */
-  getVersion: () => ipcRenderer.invoke('app:get-version'),
+  getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.getVersion),
 
   /**
    * 从 GitHub Releases API 获取最新发布的版本信息和更新日志
    * @returns {Promise<{version: string, title: string, notes: string, publishedAt: string|null, url: string|null, isNewer: boolean}>}
    */
-  getLatestRelease: () => ipcRenderer.invoke('updates:get-latest-release'),
+  getLatestRelease: () => ipcRenderer.invoke(IPC_CHANNELS.getLatestRelease),
 
   /**
    * 触发更新检查（手动触发）
    * @returns {Promise<{status: string, currentVersion: string, latestVersion?: string, version?: string, message?: string}>}
    */
-  checkForUpdates: () => ipcRenderer.invoke('updates:check')
+  checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates)
 }));

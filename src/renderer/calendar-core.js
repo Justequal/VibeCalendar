@@ -15,6 +15,10 @@
     root.CalendarCore = api;
   }
 })(typeof window !== 'undefined' ? window : globalThis, () => {
+  const DAYS_PER_WEEK = 7;
+  const CALENDAR_ROW_COUNT = 6;
+  const CALENDAR_CELL_COUNT = DAYS_PER_WEEK * CALENDAR_ROW_COUNT;
+
   const WEEKDAYS = Object.freeze({
     en: Object.freeze({
       sunday: Object.freeze(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']),
@@ -30,6 +34,30 @@
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ]);
+
+  const LUNAR_FESTIVAL_KEYS = new Set([
+    'springFestival',
+    'dragonBoat',
+    'midAutumn'
+  ]);
+
+  // Intl.DateTimeFormat 的构造成本明显高于一次日期格式化，因此按模块复用。
+  // 若运行环境不支持中国农历，节假日仍可显示，只是不标记农历节日本日。
+  let chineseLunarFormatter;
+
+  function getChineseLunarFormatter() {
+    if (chineseLunarFormatter !== undefined) return chineseLunarFormatter;
+
+    try {
+      chineseLunarFormatter = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', {
+        month: 'numeric',
+        day: 'numeric'
+      });
+    } catch (_error) {
+      chineseLunarFormatter = null;
+    }
+    return chineseLunarFormatter;
+  }
 
   /** 将任意日期规范到所在月份的第一天。 */
   function startOfMonth(date) {
@@ -63,8 +91,8 @@
 
   /** 根据一周起始日，将原生 getDay() 转换为网格列索引。 */
   function getLeadingCellCount(firstDayOfWeek, startOnMonday) {
-    if (!startOnMonday) return firstDayOfWeek;
-    return firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    const weekStart = startOnMonday ? 1 : 0;
+    return (firstDayOfWeek - weekStart + DAYS_PER_WEEK) % DAYS_PER_WEEK;
   }
 
   /**
@@ -84,27 +112,29 @@
     const month = anchorDate.getMonth();
     const firstDayOfWeek = anchorDate.getDay();
     const leadingCount = getLeadingCellCount(firstDayOfWeek, startOnMonday);
-    const firstCellDate = new Date(
+    // 使用正午作为内部游标，避免部分时区在夏令时切换日午夜附近出现跳日。
+    const cursor = new Date(
       year,
       month,
-      anchorDate.getDate() - leadingCount
+      anchorDate.getDate() - leadingCount,
+      12
     );
+    const cells = new Array(CALENDAR_CELL_COUNT);
 
-    return Array.from({ length: 42 }, (_, index) => {
-      const date = new Date(
-        firstCellDate.getFullYear(),
-        firstCellDate.getMonth(),
-        firstCellDate.getDate() + index
-      );
-
-      return {
-        year: date.getFullYear(),
-        month: date.getMonth(),
-        day: date.getDate(),
-        dayOfWeek: date.getDay(),
-        isCurrentMonth: date.getFullYear() === year && date.getMonth() === month
+    for (let index = 0; index < CALENDAR_CELL_COUNT; index += 1) {
+      const cellYear = cursor.getFullYear();
+      const cellMonth = cursor.getMonth();
+      cells[index] = {
+        year: cellYear,
+        month: cellMonth,
+        day: cursor.getDate(),
+        dayOfWeek: cursor.getDay(),
+        isCurrentMonth: cellYear === year && cellMonth === month
       };
-    });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return cells;
   }
 
   function getWeekdayLabels(startOnMonday = false, language = 'en') {
@@ -149,14 +179,20 @@
       if (month === 3 && day === qingmingDay) return 'qingming';
     }
 
-    if (!['springFestival', 'dragonBoat', 'midAutumn'].includes(holidayKey)) {
+    if (!LUNAR_FESTIVAL_KEYS.has(holidayKey)) {
       return null;
     }
 
-    const lunarParts = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', {
-      month: 'numeric',
-      day: 'numeric'
-    }).formatToParts(new Date(year, month, day, 12));
+    const formatter = getChineseLunarFormatter();
+    if (!formatter) return null;
+
+    let lunarParts;
+    try {
+      lunarParts = formatter.formatToParts(new Date(year, month, day, 12));
+    } catch (_error) {
+      return null;
+    }
+
     const lunarMonth = Number(lunarParts.find((part) => part.type === 'month')?.value);
     const lunarDay = Number(lunarParts.find((part) => part.type === 'day')?.value);
 

@@ -7,28 +7,68 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { fileURLToPath } = require('url');
 const { checkForUpdates, getLatestRelease } = require('./updater');
 
 const LIVE_PREVIEW_ENABLED = process.argv.includes('--live-preview');
 const RENDERER_DIRECTORY = path.join(__dirname, '../renderer');
+const RENDERER_ENTRY_PATH = path.resolve(RENDERER_DIRECTORY, 'index.html');
+const IPC_CHANNELS = Object.freeze({
+  getVersion: 'app:get-version',
+  getLatestRelease: 'updates:get-latest-release',
+  checkForUpdates: 'updates:check'
+});
+let ipcHandlersRegistered = false;
 
 // 禁用硬件加速：防止在特定 Windows 显卡环境下 GPU 进程崩溃 (0xC0000005)
 app.disableHardwareAcceleration();
 
+function isTrustedRenderer(event) {
+  const senderUrl = event.senderFrame?.url || event.sender?.getURL?.();
+  if (!senderUrl) return false;
+
+  try {
+    const senderPath = path.resolve(fileURLToPath(senderUrl));
+    return process.platform === 'win32'
+      ? senderPath.toLowerCase() === RENDERER_ENTRY_PATH.toLowerCase()
+      : senderPath === RENDERER_ENTRY_PATH;
+  } catch {
+    return false;
+  }
+}
+
+function fromTrustedRenderer(handler) {
+  return (event, ...args) => {
+    if (!isTrustedRenderer(event)) {
+      throw new Error('拒绝来自非应用页面的更新请求');
+    }
+    return handler(event, ...args);
+  };
+}
+
 /**
- * 注册主进程与渲染进程之间的 IPC 通信处理程序。
- * 包括读取版本号、从 GitHub API 获取最新 Release 公告，以及执行手动更新检查。
+ * 注册主进程与渲染进程之间的最小 IPC 接口，并校验调用页面来源。
+ * 重复调用不会重复注册处理器，便于测试或未来拆分应用初始化流程。
  */
 function registerIpcHandlers() {
-  // 获取当前 Electron 应用的版本号
-  ipcMain.handle('app:get-version', () => app.getVersion());
-  // 获取 GitHub 最新 Release 版本信息与更新说明
-  ipcMain.handle('updates:get-latest-release', () => getLatestRelease());
-  // 手动触发更新检查
-  ipcMain.handle('updates:check', (event) => checkForUpdates(
-    BrowserWindow.fromWebContents(event.sender),
-    { manual: true }
-  ));
+  if (ipcHandlersRegistered) return;
+  ipcHandlersRegistered = true;
+
+  ipcMain.handle(
+    IPC_CHANNELS.getVersion,
+    fromTrustedRenderer(() => app.getVersion())
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.getLatestRelease,
+    fromTrustedRenderer(() => getLatestRelease())
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.checkForUpdates,
+    fromTrustedRenderer((event) => checkForUpdates(
+      BrowserWindow.fromWebContents(event.sender),
+      { manual: true }
+    ))
+  );
 }
 
 /**
@@ -107,7 +147,7 @@ function createWindow() {
   });
 
   // 加载前端页面
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  mainWindow.loadFile(RENDERER_ENTRY_PATH);
   enableLivePreview(mainWindow);
   return mainWindow;
 }

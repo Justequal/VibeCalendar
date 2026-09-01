@@ -10,115 +10,7 @@
     language: 'vibe-calendar:preference:language'
   });
 
-  const TRANSLATIONS = Object.freeze({
-    'zh-CN': Object.freeze({
-      appTitle: '氛围日历',
-      close: '关闭窗口',
-      previousMonth: '上个月（←）',
-      nextMonth: '下个月（→）',
-      calendar: '月历',
-      goToday: '回到今天',
-      todayShortcut: '回到今天（快捷键 T）',
-      versionAnnouncement: '查看最新版本更新公告',
-      checkUpdates: '检查更新',
-      checkingUpdates: '正在检查…',
-      updateAvailable: '发现新版本 v{version}，正在准备下载',
-      upToDate: '当前已是最新版本',
-      updateCheckError: '检查更新失败，请稍后重试',
-      updateUnavailable: '当前版本暂不支持自动更新',
-      releaseTitle: '最新版本更新公告',
-      releaseLoading: '正在加载…',
-      releaseNoNotes: '此版本没有附加更新说明。',
-      releaseLoadError: '更新公告加载失败，请检查网络后重试。',
-      closeRelease: '关闭更新公告',
-      firstDayMonday: '首日：周一',
-      firstDaySunday: '首日：周日',
-      toggleWeek: '切换一周起始日',
-      languageButton: 'EN',
-      switchLanguage: '切换到英文',
-      dayOffMarker: '休',
-      workdayMarker: '班',
-      legend: '标记说明',
-      festivalLegend: '节日',
-      dayOffLegend: '休假',
-      workdayLegend: '补班',
-      festivalDayStatus: '节日本日',
-      holidayStatus: '休息',
-      workdayStatus: '补班',
-      festivals: Object.freeze({
-        newYear: '元旦',
-        springFestival: '春节',
-        qingming: '清明节',
-        labourDay: '劳动节',
-        dragonBoat: '端午节',
-        midAutumn: '中秋节',
-        nationalDay: '国庆节'
-      }),
-      festivalMarkers: Object.freeze({
-        newYear: '元旦',
-        springFestival: '春节',
-        qingming: '清明',
-        labourDay: '劳动节',
-        dragonBoat: '端午',
-        midAutumn: '中秋',
-        nationalDay: '国庆'
-      })
-    }),
-    en: Object.freeze({
-      appTitle: 'Vibe Calendar',
-      close: 'Close window',
-      previousMonth: 'Previous month (←)',
-      nextMonth: 'Next month (→)',
-      calendar: 'Monthly calendar',
-      goToday: 'Go to Today',
-      todayShortcut: 'Go to Today (shortcut: T)',
-      versionAnnouncement: 'View the latest release notes',
-      checkUpdates: 'Check for Updates',
-      checkingUpdates: 'Checking…',
-      updateAvailable: 'Version {version} is available and is being prepared',
-      upToDate: 'You are using the latest version',
-      updateCheckError: 'Could not check for updates. Try again later.',
-      updateUnavailable: 'Automatic updates are unavailable in this build',
-      releaseTitle: 'Latest Release Notes',
-      releaseLoading: 'Loading…',
-      releaseNoNotes: 'No release notes were provided for this version.',
-      releaseLoadError: 'Could not load the release notes. Check your connection and try again.',
-      closeRelease: 'Close release notes',
-      firstDayMonday: '1st: Mon',
-      firstDaySunday: '1st: Sun',
-      toggleWeek: 'Change the first day of the week',
-      languageButton: '中文',
-      switchLanguage: 'Switch to Chinese',
-      dayOffMarker: 'Rest',
-      workdayMarker: 'Work',
-      legend: 'Calendar marker legend',
-      festivalLegend: 'Fest.',
-      dayOffLegend: 'Day off',
-      workdayLegend: 'Work',
-      festivalDayStatus: 'festival day',
-      holidayStatus: 'day off',
-      workdayStatus: 'make-up workday',
-      festivals: Object.freeze({
-        newYear: "New Year's Day",
-        springFestival: 'Spring Festival',
-        qingming: 'Qingming Festival',
-        labourDay: 'Labour Day',
-        dragonBoat: 'Dragon Boat Festival',
-        midAutumn: 'Mid-Autumn Festival',
-        nationalDay: 'National Day'
-      }),
-      // 日历格使用短标签；悬停提示和无障碍文本仍使用上面的完整名称。
-      festivalMarkers: Object.freeze({
-        newYear: 'Fest',
-        springFestival: 'Fest',
-        qingming: 'Fest',
-        labourDay: 'Fest',
-        dragonBoat: 'Fest',
-        midAutumn: 'Fest',
-        nationalDay: 'Fest'
-      })
-    })
-  });
+  const TRANSLATIONS = window.VibeCalendarTranslations;
 
   const elements = {
     app: document.getElementById('app-container'),
@@ -192,7 +84,25 @@
     return TRANSLATIONS[state.language];
   }
 
+  const updateController = window.createUpdateController({ elements, getText });
+  const accessibleDateFormatters = new Map();
+  let renderedControlsLanguage;
+  let renderedWeekdayKey;
+
+  function getAccessibleDateFormatter() {
+    if (!accessibleDateFormatters.has(state.language)) {
+      accessibleDateFormatters.set(state.language, new Intl.DateTimeFormat(state.language, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }));
+    }
+    return accessibleDateFormatters.get(state.language);
+  }
+
   function renderLocalizedControls() {
+    if (renderedControlsLanguage === state.language) return;
+
     const text = getText();
     document.documentElement.lang = state.language;
     document.title = text.appTitle;
@@ -209,24 +119,20 @@
     elements.languageToggle.textContent = text.languageButton;
     elements.languageToggle.setAttribute('aria-label', text.switchLanguage);
     elements.languageToggle.title = text.switchLanguage;
-    elements.version.setAttribute('aria-label', text.versionAnnouncement);
-    elements.version.title = text.versionAnnouncement;
-    elements.checkUpdate.textContent = text.checkUpdates;
-    elements.checkUpdate.setAttribute('aria-label', text.checkUpdates);
-    elements.releaseTitle.textContent = text.releaseTitle;
-    elements.releaseClose.setAttribute('aria-label', text.closeRelease);
     elements.calendarLegend.setAttribute('aria-label', text.legend);
     elements.dayOffLegend.textContent = text.dayOffLegend;
     elements.workdayLegend.textContent = text.workdayLegend;
+    updateController.syncLanguage();
+    renderedControlsLanguage = state.language;
   }
 
   /** 图例优先展示当前日期窗口中真正出现的节日名称。 */
-  function renderLegend(cells) {
+  function renderLegend(cells, holidaysByYear) {
     const text = getText();
     const visibleFestivals = [...new Set(cells
       .map((cell) => {
         const dateKey = CalendarCore.toDateKey(cell.year, cell.month, cell.day);
-        return window.holidayManager.getHolidays(cell.year)[dateKey]?.festival;
+        return holidaysByYear.get(cell.year)[dateKey]?.festival;
       })
       .filter(Boolean))];
 
@@ -237,6 +143,9 @@
 
   /** 渲染星期标题，并同步更新切换按钮的可访问性描述。 */
   function renderWeekdays() {
+    const renderKey = `${state.language}:${state.startOnMonday}`;
+    if (renderedWeekdayKey === renderKey) return;
+
     elements.weekdays.replaceChildren(...CalendarCore
       .getWeekdayLabels(state.startOnMonday, state.language)
       .map((label) => {
@@ -252,18 +161,20 @@
     elements.toggleWeek.setAttribute('aria-label', text.toggleWeek);
     elements.toggleWeek.title = text.toggleWeek;
     elements.toggleWeek.setAttribute('aria-pressed', String(state.startOnMonday));
+    renderedWeekdayKey = renderKey;
   }
 
   /** 创建一个日期单元格；节假日信息只影响展示，不参与日期计算。 */
-  function createDayElement(cell, today) {
+  function createDayElement(cell, today, dateFormatter, holidaysByYear) {
     const dateKey = CalendarCore.toDateKey(cell.year, cell.month, cell.day);
-    const holidayData = window.holidayManager.getHolidays(cell.year)[dateKey];
+    const holidayData = holidaysByYear.get(cell.year)[dateKey];
     const isWeekend = cell.dayOfWeek === 0 || cell.dayOfWeek === 6;
     const isWorkDay = holidayData ? !holidayData.isHoliday : !isWeekend;
     const isFestival = Boolean(holidayData?.festival);
 
     const dayElement = document.createElement('div');
     dayElement.classList.add('day', isWorkDay ? 'is-workday' : 'is-holiday');
+    dayElement.dataset.date = dateKey;
     if (isWeekend) dayElement.classList.add('is-weekend');
     if (isFestival) dayElement.classList.add('is-festival');
     if (holidayData?.isHoliday && !isFestival) dayElement.classList.add('is-day-off');
@@ -306,11 +217,7 @@
     if (isToday) dayElement.classList.add('today');
 
     const text = getText();
-    const accessibleDate = new Intl.DateTimeFormat(state.language, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    }).format(new Date(cell.year, cell.month, cell.day));
+    const accessibleDate = dateFormatter.format(new Date(cell.year, cell.month, cell.day));
     const festivalLabel = holidayData?.festival
       ? text.festivals[holidayData.festival]
       : null;
@@ -338,6 +245,9 @@
       state.startOnMonday
     );
     const today = new Date();
+    const holidaysByYear = new Map([...new Set(cells.map((cell) => cell.year))]
+      .map((visibleYear) => [visibleYear, window.holidayManager.getHolidays(visibleYear)]));
+    const dateFormatter = getAccessibleDateFormatter();
 
     elements.monthYear.textContent = CalendarCore.getMonthLabel(
       year,
@@ -345,11 +255,16 @@
       state.language
     );
     renderLocalizedControls();
-    renderLegend(cells);
+    renderLegend(cells, holidaysByYear);
     renderWeekdays();
 
     const fragment = document.createDocumentFragment();
-    cells.forEach((cell) => fragment.appendChild(createDayElement(cell, today)));
+    cells.forEach((cell) => fragment.appendChild(createDayElement(
+      cell,
+      today,
+      dateFormatter,
+      holidaysByYear
+    )));
     elements.calendarGrid.replaceChildren(fragment);
   }
 
@@ -394,97 +309,6 @@
     });
   }
 
-  // 更新状态通知定时器
-  let updateStatusTimer;
-
-  /**
-   * 在界面底部显示简短的更新状态提示气泡
-   * @param {string} message 提示文本
-   * @param {boolean} [isError=false] 是否为错误状态提示
-   */
-  function showUpdateStatus(message, isError = false) {
-    clearTimeout(updateStatusTimer);
-    elements.updateStatus.textContent = message;
-    elements.updateStatus.classList.toggle('is-error', isError);
-    elements.updateStatus.hidden = false;
-    updateStatusTimer = setTimeout(() => {
-      elements.updateStatus.hidden = true;
-    }, 4500);
-  }
-
-  /**
-   * 关闭更新公告模态弹窗
-   */
-  function closeReleaseModal() {
-    elements.releaseModal.hidden = true;
-  }
-
-  /**
-   * 点击版本号时弹出更新公告卡片，并异步拉取 GitHub 最新 Release 说明
-   */
-  async function showLatestRelease() {
-    const text = getText();
-    elements.releaseTitle.textContent = text.releaseTitle;
-    elements.releaseVersion.textContent = '';
-    elements.releaseNotes.textContent = text.releaseLoading;
-    elements.releaseModal.hidden = false;
-
-    try {
-      const release = await window.appUpdates.getLatestRelease();
-      elements.releaseVersion.textContent = `${release.title} · v${release.version}`;
-      elements.releaseNotes.textContent = release.notes || text.releaseNoNotes;
-    } catch (error) {
-      console.warn('加载更新公告失败：', error);
-      elements.releaseNotes.textContent = text.releaseLoadError;
-    }
-  }
-
-  /**
-   * 用户手动点击“检查更新”按钮触发
-   */
-  async function checkForUpdatesManually() {
-    const text = getText();
-    elements.checkUpdate.disabled = true;
-    elements.checkUpdate.textContent = text.checkingUpdates;
-
-    try {
-      const result = await window.appUpdates.checkForUpdates();
-      if (result.status === 'available') {
-        const latestVersion = result.latestVersion || result.version || '';
-        showUpdateStatus(text.updateAvailable.replace('{version}', latestVersion));
-      } else if (result.status === 'up-to-date') {
-        showUpdateStatus(text.upToDate);
-      } else if (result.status === 'unavailable') {
-        showUpdateStatus(text.updateUnavailable, true);
-      } else if (result.status === 'error') {
-        showUpdateStatus(text.updateCheckError, true);
-      }
-    } catch (error) {
-      console.warn('手动检查更新失败：', error);
-      showUpdateStatus(text.updateCheckError, true);
-    } finally {
-      elements.checkUpdate.disabled = false;
-      elements.checkUpdate.textContent = getText().checkUpdates;
-    }
-  }
-
-  /**
-   * 初始化版本号显示与更新检查入口
-   */
-  async function initializeUpdateControls() {
-    if (!window.appUpdates) {
-      elements.version.hidden = true;
-      elements.checkUpdate.hidden = true;
-      return;
-    }
-
-    try {
-      elements.version.textContent = `v${await window.appUpdates.getVersion()}`;
-    } catch (error) {
-      console.warn('读取应用版本失败：', error);
-    }
-  }
-
   function bindEvents() {
     elements.toggleWeek.addEventListener('click', () => {
       state.startOnMonday = !state.startOnMonday;
@@ -506,38 +330,31 @@
     elements.previousMonth.addEventListener('click', () => moveMonth(-1));
     elements.nextMonth.addEventListener('click', () => moveMonth(1));
     elements.close.addEventListener('click', () => window.close());
-    elements.version.addEventListener('click', showLatestRelease);
-    elements.checkUpdate.addEventListener('click', checkForUpdatesManually);
-    elements.releaseClose.addEventListener('click', closeReleaseModal);
-    elements.releaseModal.addEventListener('click', (event) => {
-      if (event.target === elements.releaseModal) closeReleaseModal();
-    });
 
     // 累计滚轮输入并按实际幅度换算行数，快速滚动时不丢弃后续事件。
-    // Chromium 的像素模式通常约 100px/刻度；Firefox 常用 3 行/刻度。
-    let wheelRowRemainder = 0;
+    // 同一动画帧内的行数合并为一次 DOM 重绘，既保留幅度又降低高频滚动开销。
+    const wheelRows = InteractionCore.createWheelRowAccumulator();
+    let queuedWheelRows = 0;
+    let wheelFrame = 0;
     elements.app.addEventListener('wheel', (event) => {
-      if (event.deltaY === 0) return;
+      if (event.deltaY === 0 || updateController.isReleaseNotesOpen()) return;
 
-      const rowDelta = event.deltaMode === WheelEvent.DOM_DELTA_LINE
-        ? event.deltaY / 3
-        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-          ? event.deltaY * 6
-          : event.deltaY / 100;
-
-      wheelRowRemainder += rowDelta;
-      const wholeRows = Math.trunc(wheelRowRemainder);
+      const wholeRows = wheelRows.push(event.deltaY, event.deltaMode);
       if (wholeRows === 0) return;
 
-      wheelRowRemainder -= wholeRows;
-      moveWeek(wholeRows);
+      queuedWheelRows += wholeRows;
+      if (wheelFrame) return;
+
+      wheelFrame = requestAnimationFrame(() => {
+        const rows = queuedWheelRows;
+        queuedWheelRows = 0;
+        wheelFrame = 0;
+        if (rows !== 0) moveWeek(rows);
+      });
     }, { passive: true });
 
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !elements.releaseModal.hidden) {
-        closeReleaseModal();
-        return;
-      }
+      if (updateController.isReleaseNotesOpen()) return;
       if (event.key === 'ArrowLeft') moveMonth(-1);
       if (event.key === 'ArrowRight') moveMonth(1);
       if (event.key.toLowerCase() === 't') {
@@ -549,7 +366,7 @@
 
   bindEvents();
   updateClock();
-  initializeUpdateControls();
+  updateController.initialize();
   setInterval(updateClock, 1000);
   renderCalendar();
 })();

@@ -14,24 +14,28 @@ const path = require('node:path');
 
 /**
  * 模拟加载 updater.js 模块，隔离 Electron 原生依赖
- * @param {{isPackaged?: boolean, dialogResponse?: number, currentVersion?: string, nextVersion?: string}} options
+ * @param {{isPackaged?: boolean, dialogResponse?: number, currentVersion?: string, nextVersion?: string, checkForUpdatesImpl?: Function}} options
  */
 function loadUpdater({
   isPackaged = true,
   dialogResponse = 0,
   currentVersion = '1.1.1',
-  nextVersion = '1.1.1'
+  nextVersion = '1.1.1',
+  checkForUpdatesImpl
 } = {}) {
   const autoUpdater = new EventEmitter();
   let checkCount = 0;
+  let quitCount = 0;
   let quitArguments;
   const dialogs = [];
 
   autoUpdater.checkForUpdates = async () => {
     checkCount += 1;
+    if (checkForUpdatesImpl) return checkForUpdatesImpl();
     return { updateInfo: { version: nextVersion } };
   };
   autoUpdater.quitAndInstall = (...args) => {
+    quitCount += 1;
     quitArguments = args;
   };
 
@@ -63,6 +67,7 @@ function loadUpdater({
       autoUpdater,
       dialogs,
       getCheckCount: () => checkCount,
+      getQuitCount: () => quitCount,
       getQuitArguments: () => quitArguments
     };
   } finally {
@@ -91,7 +96,20 @@ test('安装版静默下载更新，只在准备完成后提醒安装', async ()
 
   assert.equal(subject.dialogs.length, 1);
   assert.match(subject.dialogs[0].message, /v1\.1\.1/);
+  assert.equal(subject.getQuitCount(), 1);
   assert.deepEqual(subject.getQuitArguments(), [false, true]);
+});
+
+test('同一下载完成事件重复到达时只显示一次安装提示', async () => {
+  const subject = loadUpdater({ dialogResponse: 1 });
+  await subject.module.checkForUpdates();
+
+  subject.autoUpdater.emit('update-downloaded', { version: '1.1.2' });
+  subject.autoUpdater.emit('update-downloaded', { version: '1.1.2' });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(subject.dialogs.length, 1);
+  assert.equal(subject.getQuitCount(), 0);
 });
 
 test('开发版自动检查不访问更新服务', async () => {
@@ -110,6 +128,27 @@ test('安装版允许用户重复手动检查更新', async () => {
   assert.equal(subject.getCheckCount(), 2);
 });
 
+test('并发检查复用同一个更新请求，完成后允许再次检查', async () => {
+  let finishCheck;
+  const pendingCheck = new Promise((resolve) => {
+    finishCheck = resolve;
+  });
+  const subject = loadUpdater({
+    checkForUpdatesImpl: () => pendingCheck
+  });
+
+  const first = subject.module.checkForUpdates(undefined, { manual: true });
+  const second = subject.module.checkForUpdates(undefined, { manual: true });
+  assert.equal(subject.getCheckCount(), 1);
+
+  finishCheck({ updateInfo: { version: '1.1.1' } });
+  const results = await Promise.all([first, second]);
+  assert.deepEqual(results[0], results[1]);
+
+  await subject.module.checkForUpdates(undefined, { manual: true });
+  assert.equal(subject.getCheckCount(), 2);
+});
+
 test('安装版检查到新版本时返回 available 状态及版本号', async () => {
   const subject = loadUpdater({ currentVersion: '1.1.0', nextVersion: '1.1.1' });
 
@@ -119,6 +158,14 @@ test('安装版检查到新版本时返回 available 状态及版本号', async 
   assert.equal(result.version, '1.1.1');
 });
 
+test('更新服务未返回版本信息时不会误报为最新版本', async () => {
+  const subject = loadUpdater({ checkForUpdatesImpl: () => null });
+
+  const result = await subject.module.checkForUpdates(undefined, { manual: true });
+  assert.equal(result.status, 'unavailable');
+  assert.equal(result.reason, 'missing-update-info');
+});
+
 test('版本比较支持不同长度的语义版本号', () => {
   const subject = loadUpdater();
 
@@ -126,6 +173,19 @@ test('版本比较支持不同长度的语义版本号', () => {
   assert.equal(subject.module.compareVersions('1.1.1', '1.1.0'), 1);
   assert.equal(subject.module.compareVersions('1.1', '1.1.0'), 0);
   assert.equal(subject.module.compareVersions('1.0.9', '1.1.0'), -1);
+});
+
+test('版本比较正确处理 v 前缀、预发布版本与构建元数据', () => {
+  const subject = loadUpdater();
+
+  assert.equal(subject.module.compareVersions('v1.2.0', '1.2.0'), 0);
+  assert.equal(subject.module.compareVersions('1.2.0-rc.1', '1.2.0'), -1);
+  assert.equal(subject.module.compareVersions('1.2.0-beta.11', '1.2.0-beta.2'), 1);
+  assert.equal(subject.module.compareVersions('1.2.0+build.9', '1.2.0+build.1'), 0);
+  assert.throws(
+    () => subject.module.compareVersions('not-a-version', '1.2.0'),
+    /无效的版本号/
+  );
 });
 
 test('获取 GitHub 最新 Release 信息能够正确解析版本与更新日志', async () => {
@@ -150,6 +210,92 @@ test('获取 GitHub 最新 Release 信息能够正确解析版本与更新日志
     assert.equal(release.title, '氛围日历 v1.1.1');
     assert.match(release.notes, /增加更新公告弹窗/);
     assert.equal(release.isNewer, true);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('最新 Release 请求支持并发去重、短时缓存与强制刷新', async () => {
+  const subject = loadUpdater({ currentVersion: '1.1.0' });
+  const originalFetch = global.fetch;
+  let fetchCount = 0;
+
+  global.fetch = async () => {
+    fetchCount += 1;
+    return {
+      ok: true,
+      json: async () => ({
+        tag_name: 'v1.1.1',
+        name: 'v1.1.1',
+        body: '更新说明',
+        html_url: 'https://github.com/Justequal/VibeCalendar/releases/tag/v1.1.1'
+      })
+    };
+  };
+
+  try {
+    const [first, second] = await Promise.all([
+      subject.module.getLatestRelease(),
+      subject.module.getLatestRelease()
+    ]);
+    const cached = await subject.module.getLatestRelease();
+
+    assert.equal(fetchCount, 1);
+    assert.equal(first, second);
+    assert.equal(cached, first);
+
+    await subject.module.getLatestRelease({ forceRefresh: true });
+    assert.equal(fetchCount, 2);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('最新 Release 会拒绝无效版本，并过滤非 GitHub HTTPS 链接', async () => {
+  const originalFetch = global.fetch;
+
+  try {
+    let subject = loadUpdater();
+    global.fetch = async () => ({
+      ok: true,
+      json: async () => ({ tag_name: 'latest' })
+    });
+    await assert.rejects(subject.module.getLatestRelease(), /无效的版本号/);
+
+    subject = loadUpdater();
+    global.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        tag_name: 'v1.1.1',
+        html_url: 'javascript:alert(1)'
+      })
+    });
+    const release = await subject.module.getLatestRelease();
+    assert.equal(release.url, null);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('最新 Release 请求失败后会清理并发状态并允许重试', async () => {
+  const subject = loadUpdater();
+  const originalFetch = global.fetch;
+  let fetchCount = 0;
+
+  global.fetch = async () => {
+    fetchCount += 1;
+    if (fetchCount === 1) return { ok: false, status: 503 };
+    return {
+      ok: true,
+      json: async () => ({ tag_name: 'v1.1.1' })
+    };
+  };
+
+  try {
+    await assert.rejects(subject.module.getLatestRelease(), /HTTP 503/);
+    const release = await subject.module.getLatestRelease();
+    assert.equal(fetchCount, 2);
+    assert.equal(release.version, '1.1.1');
   } finally {
     global.fetch = originalFetch;
   }

@@ -376,7 +376,7 @@ h1 {
 .footer-actions {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
 }
 
 /* 极简发光时钟 */
@@ -410,10 +410,10 @@ h1 {
   background: rgba(129, 140, 248, 0.12);
   border: 1px solid var(--glass-border);
   color: var(--text-primary);
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   transition: all 0.3s ease;
 }
 
@@ -524,10 +524,28 @@ h1 {
 
 .release-notes {
   overflow: auto;
+  overflow-x: hidden;
   padding: 15px 16px 18px;
   color: #cbd5e1;
   font-size: 11px;
   line-height: 1.65;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   user-select: text;
+}
+
+button:focus-visible {
+  outline: 2px solid rgba(165, 180, 252, 0.9);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
