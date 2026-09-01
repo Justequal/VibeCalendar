@@ -41,7 +41,7 @@
       const title = String(release.title || '').trim();
       return title.toLowerCase().includes(versionLabel.toLowerCase())
         ? title
-        : `${title || 'Vibe Calendar'} · ${versionLabel}`;
+        : `${title || 'VibeCalendar'} · ${versionLabel}`;
     }
 
     /** 将常见 Markdown 标记转为适合纯文本弹层阅读的形式。 */
@@ -91,8 +91,6 @@
           showStatus(text.updateAvailable.replace('{version}', version));
         } else if (result.status === 'up-to-date') {
           showStatus(text.upToDate);
-        } else if (result.status === 'unavailable') {
-          showStatus(text.updateUnavailable, true);
         } else if (result.status === 'error') {
           showStatus(text.updateCheckError, true);
         }

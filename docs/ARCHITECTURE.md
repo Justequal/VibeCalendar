@@ -1,4 +1,4 @@
-# Vibe Calendar 架构说明
+# VibeCalendar 架构说明
 
 本文描述当前代码的职责边界、主要数据流和扩展约定。它是维护者理解项目结构的入口；具体命令见 [开发指南](DEVELOPMENT.md)，正式发布见 [发布指南](RELEASING.md)。
 
@@ -73,12 +73,13 @@ Preload 通过 `contextBridge` 暴露冻结的 `window.appUpdates`：
 
 ### `src/main/updater.js`
 
-更新服务把两种检查方式统一为结构化结果：`available`、`up-to-date`、`unavailable`、
-`development` 或 `error`。
+更新服务把用户可见的手动检查统一为三种结论：`available`、`up-to-date` 或 `error`。
+`development` 和 `skipped` 只用于不展示结果的启动路径。
 
 - 安装版使用 `electron-updater`，允许自动下载，并在下载完成后显示原生安装提示。
-- 开发版启动时跳过更新网络访问；用户手动检查时只读取 GitHub 最新 Release 并比较版本，不下载或安装。
-- Release 公告请求设置 10 秒超时，并复用并发请求；成功结果缓存 5 分钟。开发模式下的手动检查会强制刷新，避免用缓存判断是否有新版本。
+- 所有手动检查先读取 GitHub 最新正式 Release 并比较版本；只有安装版确认有新版本后才启动后台下载。因此下载元数据暂时缺失不会被误报成“不支持更新”。
+- 开发版启动时跳过更新网络访问，手动检查只比较版本，不下载或安装。
+- Release 公告请求设置 10 秒超时，并复用并发请求；成功结果缓存 5 分钟。手动检查会强制刷新，避免用缓存判断是否有新版本。
 - Release 字段会限长，外部链接只接受 GitHub 的 HTTPS 地址；网络失败转为可展示的错误结果。
 - 安装包更新检查会合并并发调用，同一版本的下载完成事件只提示一次。
 - 版本比较由服务层完成，支持可选的 `v` 前缀、预发布标识和构建元数据，渲染层不解析版本字符串。
@@ -180,8 +181,9 @@ GitHub Release 正文属于发布内容而非界面文案，不做自动翻译�
   → window.appUpdates
   → preload IPC
   → main/updater
-      ├─ 开发版手动检查：GitHub Releases API → 比较版本
-      └─ 安装版：electron-updater → latest.yml → 后台下载
+      ├─ 手动检查：GitHub Releases API → 比较版本
+      │   └─ 安装版发现新版：electron-updater → latest.yml → 后台下载
+      └─ 安装版启动检查：electron-updater → latest.yml → 后台下载
   → 返回结构化状态并更新界面
 ```
 

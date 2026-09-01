@@ -7,7 +7,7 @@
 (function exposeTranslations(root) {
   root.VibeCalendarTranslations = Object.freeze({
     'zh-CN': Object.freeze({
-      appTitle: '氛围日历',
+      appTitle: 'VibeCalendar',
       close: '关闭窗口',
       previousMonth: '上个月（←）',
       nextMonth: '下个月（→）',
@@ -17,10 +17,9 @@
       versionAnnouncement: '查看最新版本更新公告',
       checkUpdates: '检查更新',
       checkingUpdates: '正在检查…',
-      updateAvailable: '发现新版本 v{version}，正在准备下载',
+      updateAvailable: '发现新版本 v{version}',
       upToDate: '当前已是最新版本',
       updateCheckError: '检查更新失败，请稍后重试',
-      updateUnavailable: '当前版本暂不支持自动更新',
       releaseTitle: '最新版本更新公告',
       releaseLoading: '正在加载…',
       releaseNoNotes: '此版本没有附加更新说明。',
@@ -60,7 +59,7 @@
       })
     }),
     en: Object.freeze({
-      appTitle: 'Vibe Calendar',
+      appTitle: 'VibeCalendar',
       close: 'Close window',
       previousMonth: 'Previous month (←)',
       nextMonth: 'Next month (→)',
@@ -70,10 +69,9 @@
       versionAnnouncement: 'View the latest release notes',
       checkUpdates: 'Check for Updates',
       checkingUpdates: 'Checking…',
-      updateAvailable: 'Version {version} is available and is being prepared',
+      updateAvailable: 'Version {version} is available',
       upToDate: 'You are using the latest version',
       updateCheckError: 'Could not check for updates. Try again later.',
-      updateUnavailable: 'Automatic updates are unavailable in this build',
       releaseTitle: 'Latest Release Notes',
       releaseLoading: 'Loading…',
       releaseNoNotes: 'No release notes were provided for this version.',

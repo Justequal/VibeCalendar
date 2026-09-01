@@ -1,6 +1,6 @@
 # 参与贡献
 
-感谢参与氛围日历。项目采用轻量主干开发：`main` 是唯一长期分支，功能、修复和重构通过短期分支与 Pull Request 合并。
+感谢参与 VibeCalendar。项目采用轻量主干开发：`main` 是唯一长期分支，功能、修复和重构通过短期分支与 Pull Request 合并。
 
 开始前请阅读 [架构说明](docs/ARCHITECTURE.md) 和 [开发指南](docs/DEVELOPMENT.md)。本项目重视清晰的职责边界、离线可用性、可访问性与可重复验证；优化不应改变既有的简约桌面日历定位。
 
@@ -93,7 +93,7 @@ git diff --check
 - `docs/ARCHITECTURE.md`：模块边界、数据流和扩展约定
 - `docs/DEVELOPMENT.md`：命令、验证和排错
 - `docs/RELEASING.md`：版本、标签、产物和发布条件
-- `CHANGELOG.md`：用户或维护者可感知的版本变化
+- `CHANGELOG.md`：每个正式版本的用户更新记录，也是 GitHub Release 和应用内公告的唯一内容来源；内容不便展开时至少写“优化了一些功能”
 
 文档只能描述当前已实现的行为。未来设想应进入 Issue，不要作为现有功能写入 README 或架构图。
 

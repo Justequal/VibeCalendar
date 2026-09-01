@@ -3,7 +3,7 @@
  *
  * 核心逻辑：
  * 1. 安装版启动后静默检查并在后台下载更新包。下载完成后提示用户选择“立即重启安装”或“稍后在退出时安装”。
- * 2. 支持手动检查更新（通过前端“检查更新”按钮触发），提供明确的当前状态反馈。
+ * 2. 手动检查统一通过 GitHub Release 判断“有新版 / 已是最新版”，不向用户暴露下载器能力差异。
  * 3. 支持从 GitHub Releases API 查询最新版本发布日志，供版本号点击弹窗使用。
  */
 const { app, dialog } = require('electron');
@@ -172,7 +172,7 @@ function initializeAutoUpdater(parentWindow) {
   autoUpdater.allowPrerelease = false;
 
   autoUpdater.on('update-available', (info) => {
-    console.info(`发现氛围日历 v${info?.version || '新版'}，正在后台下载。`);
+    console.info(`发现 VibeCalendar v${info?.version || '新版'}，正在后台下载。`);
   });
 
   autoUpdater.on('update-downloaded', async (info) => {
@@ -185,7 +185,7 @@ function initializeAutoUpdater(parentWindow) {
       const result = await showDialog(updateParentWindow, {
         type: 'info',
         title: '更新准备就绪',
-        message: `氛围日历 v${downloadedVersion || '新版'} 已准备就绪。`,
+        message: `VibeCalendar v${downloadedVersion || '新版'} 已准备就绪。`,
         detail: '立即重启即可完成安装；选择“稍后”则会在你正常退出应用时自动安装。',
         buttons: ['重启并安装', '稍后'],
         defaultId: 0,
@@ -282,33 +282,66 @@ async function getLatestRelease({ forceRefresh = false } = {}) {
  * 检查应用更新
  * @param {import('electron').BrowserWindow|null} parentWindow
  * @param {{manual?: boolean}} options manual 为 true 时表示由用户主动点击触发
- * @returns {Promise<{status: 'available'|'up-to-date'|'unavailable'|'development'|'error', currentVersion: string, latestVersion?: string, version?: string, reason?: string, message?: string, development?: boolean}>}
+ * @returns {Promise<{status: 'available'|'up-to-date'|'development'|'skipped'|'error', currentVersion: string, latestVersion?: string, version?: string, reason?: string, message?: string, development?: boolean, downloadStarted?: boolean}>}
  */
 async function checkForUpdates(parentWindow, { manual = false } = {}) {
   const currentVersion = app.getVersion();
+
+  // 用户主动检查时，版本结论只取决于最新正式 Release。这样即使下载器元数据
+  // 尚未同步，也不会把“暂时无法下载”错误表述成“当前版本不能更新”。
+  if (manual) {
+    try {
+      const release = await getLatestRelease({ forceRefresh: true });
+      if (!release.isNewer) {
+        return {
+          status: 'up-to-date',
+          currentVersion,
+          latestVersion: release.version,
+          version: release.version
+        };
+      }
+
+      let downloadStarted = false;
+      if (app.isPackaged && isUpdateConfigured()) {
+        initializeAutoUpdater(parentWindow);
+        if (!updateCheckPromise) {
+          updateCheckPromise = autoUpdater.checkForUpdates()
+            .finally(() => {
+              updateCheckPromise = null;
+            });
+        }
+
+        try {
+          const updateResult = await updateCheckPromise;
+          downloadStarted = Boolean(updateResult?.updateInfo?.version);
+        } catch (error) {
+          // 已发现新版仍是有效结论。下载器失败由日志记录，后续启动或再次点击可重试。
+          console.error('已发现新版本，但暂时无法启动后台下载：', error);
+        }
+      }
+
+      return {
+        status: 'available',
+        currentVersion,
+        latestVersion: release.version,
+        version: release.version,
+        downloadStarted
+      };
+    } catch (error) {
+      console.error('检查最新 Release 失败：', error);
+      return { status: 'error', currentVersion, message: getErrorMessage(error) };
+    }
+  }
+
   if (!isUpdateConfigured()) {
     console.info('自动更新未启用：发布仓库尚未配置。');
-    return { status: 'unavailable', currentVersion, reason: 'not-configured' };
+    return { status: 'skipped', currentVersion, reason: 'not-configured' };
   }
 
   // 开发环境下跳过 electron-updater 的安装包下载逻辑
   if (!app.isPackaged) {
     console.info('自动安装在开发模式下禁用。');
-    if (!manual) return { status: 'development', currentVersion };
-
-    try {
-      const release = await getLatestRelease({ forceRefresh: true });
-      return {
-        status: release.isNewer ? 'available' : 'up-to-date',
-        currentVersion,
-        latestVersion: release.version,
-        version: release.version,
-        development: true
-      };
-    } catch (error) {
-      console.error('开发模式检查最新 Release 失败：', error);
-      return { status: 'error', currentVersion, message: getErrorMessage(error) };
-    }
+    return { status: 'development', currentVersion };
   }
 
   // 正式打包环境下使用 autoUpdater 进行更新检查与后台下载
@@ -321,7 +354,8 @@ async function checkForUpdates(parentWindow, { manual = false } = {}) {
       const latestVersion = result?.updateInfo?.version;
       if (!latestVersion) {
         return {
-          status: 'unavailable',
+          // 静默检查的返回值不展示给用户；缺少元数据不再被解释为“不支持更新”。
+          status: 'up-to-date',
           currentVersion,
           reason: 'missing-update-info'
         };

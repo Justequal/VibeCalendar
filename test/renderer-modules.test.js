@@ -47,7 +47,6 @@ const UPDATE_TEXT = Object.freeze({
   updateAvailable: '发现 v{version}',
   upToDate: '已是最新',
   updateCheckError: '失败',
-  updateUnavailable: '不可用',
   releaseTitle: '更新公告',
   releaseLoading: '加载中',
   releaseNoNotes: '无说明',

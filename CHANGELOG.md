@@ -1,9 +1,24 @@
-# 更新日志
+# 版本更新记录
 
-本文件记录 Vibe Calendar 各正式版本中用户可感知的变化。格式参考 Keep a Changelog，
-版本号遵循语义化版本。
+本文件记录 VibeCalendar 各正式版本中用户可感知的变化。格式参考 Keep a Changelog，
+版本号遵循语义化版本。正式发布时，工作流会直接提取对应版本段落作为 GitHub Release
+和应用内版本公告，不再使用自动生成的代码提交差异。
+
+每次版本更新都必须新增一个版本段落并简要说明用户可感知的变化；若没有必要展开，
+至少记录“优化了一些功能”。
 
 ## [Unreleased]
+
+## [1.1.3] - 2026-09-01
+
+### 修复
+
+- 手动检查更新只显示“发现新版本”“已是最新版本”或检查失败，不再把下载器元数据暂时不可用误报为当前版本不支持更新
+
+### 维护
+
+- GitHub Release 和应用内更新公告改为读取本文件对应版本的维护记录，不再自动展示代码差异链接
+- 应用品牌名、窗口标题、程序名和安装包名统一为 `VibeCalendar`
 
 ## [1.1.2] - 2026-09-01
 
@@ -79,7 +94,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.3...HEAD
+[1.1.3]: https://github.com/Justequal/VibeCalendar/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/Justequal/VibeCalendar/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/Justequal/VibeCalendar/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Justequal/VibeCalendar/compare/v1.0.2...v1.1.0

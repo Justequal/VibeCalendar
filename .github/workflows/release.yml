@@ -46,6 +46,9 @@ jobs:
     - name: Build release assets
       run: npm run build -- --publish never
 
+    - name: Extract maintained release notes
+      run: node scripts/extract-release-notes.js "${{ github.ref_name }}" dist/release-notes.md
+
     - name: Create GitHub Release and upload assets
       shell: pwsh
       run: |
@@ -67,9 +70,15 @@ jobs:
           gh release create "${{ github.ref_name }}" `
             --repo "${{ github.repository }}" `
             --verify-tag `
-            --title "Vibe Calendar ${{ github.ref_name }}" `
-            --generate-notes
+            --title "VibeCalendar ${{ github.ref_name }}" `
+            --notes-file dist/release-notes.md
           if ($LASTEXITCODE -ne 0) { throw "Unable to create GitHub Release" }
+        } else {
+          gh release edit "${{ github.ref_name }}" `
+            --repo "${{ github.repository }}" `
+            --title "VibeCalendar ${{ github.ref_name }}" `
+            --notes-file dist/release-notes.md
+          if ($LASTEXITCODE -ne 0) { throw "Unable to update GitHub Release notes" }
         }
 
         foreach ($asset in $assets) {
@@ -110,4 +119,3 @@ jobs:
           dist/latest.yml
         if-no-files-found: error
         retention-days: 14
-

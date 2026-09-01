@@ -1,6 +1,6 @@
 # 发布指南
 
-Vibe Calendar 使用语义化版本和 GitHub Actions 发布 Windows 安装包。本项目的正式 Release 由**版本标签推送**触发，不由普通分支推送触发。
+VibeCalendar 使用语义化版本和 GitHub Actions 发布 Windows 安装包。本项目的正式 Release 由**版本标签推送**触发，不由普通分支推送触发。
 
 ## 1. 版本选择
 
@@ -51,7 +51,7 @@ on:
 2. `main` 的 CI 成功，Windows 冒烟构建已人工试用。
 3. 工作区干净，本地 `main` 与远端同步。
 4. 将 `CHANGELOG.md` 的待发布内容整理到目标版本和当天日期。
-5. 确认用户可见更新说明适合出现在 GitHub Release 中。
+5. 确认该版本段落是简短、面向用户的更新说明；内容不便展开时至少写“优化了一些功能”。
 
 ```bash
 git switch main
@@ -104,15 +104,16 @@ git push origin main --follow-tags
 1. 安装锁定依赖并运行 `npm run verify`；
 2. 执行 `npm run build -- --publish never`；
 3. 从 `dist/latest.yml` 读取真实安装包文件名；
-4. 创建 GitHub Release（默认使用 GitHub 自动生成的更新说明）；
-5. 上传以下正式资产：
-   - `Vibe-Calendar-Setup-<version>.exe`
-   - `Vibe-Calendar-Setup-<version>.exe.blockmap`
+4. 从 `CHANGELOG.md` 提取与标签同版本的维护记录；
+5. 创建或更新 GitHub Release，并把提取内容作为公告正文，不生成代码差异说明；
+6. 上传以下正式资产：
+   - `VibeCalendar-Setup-<version>.exe`
+   - `VibeCalendar-Setup-<version>.exe.blockmap`
    - `latest.yml`
-6. 额外上传保留 14 天的 Actions 构建产物；
-7. 若仓库配置了 `WINGET_TOKEN`，尝试向 `microsoft/winget-pkgs` 提交版本更新。
+7. 额外上传保留 14 天的 Actions 构建产物；
+8. 若仓库配置了 `WINGET_TOKEN`，尝试向 `microsoft/winget-pkgs` 提交版本更新。
 
-应用内“最新版本更新公告”读取的是 GitHub 上标记为 Latest 的正式 Release 正文，而不是直接读取仓库中的 `CHANGELOG.md`。发布后可以在 GitHub 编辑 Release 正文；应用下次查询会显示更新后的内容。
+`CHANGELOG.md` 是版本公告的唯一维护来源。应用内仍读取 GitHub 上标记为 Latest 的正式 Release 正文，但该正文由发布工作流从 `CHANGELOG.md` 对应版本段落同步生成。为避免下次工作流重跑覆盖，不要只在 GitHub 页面修改公告。
 
 ## 6. 发布后验证
 

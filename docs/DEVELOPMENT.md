@@ -1,4 +1,4 @@
-# Vibe Calendar 开发指南
+# VibeCalendar 开发指南
 
 本文覆盖本地环境、实时预览、代码职责、验证方法和常见排错。架构边界见 [ARCHITECTURE.md](ARCHITECTURE.md)，正式版本流程见 [RELEASING.md](RELEASING.md)。
 
@@ -146,11 +146,13 @@ npm run verify:full
 
 1. **启动检查**：正式安装版调用 `electron-updater`；开发版直接跳过。
 2. **点击版本号**：两种 Electron 模式都调用 GitHub `releases/latest`，只读取公告。
-3. **手动检查**：开发版读取 Release 并比较版本；正式安装版调用 `electron-updater`，发现更新后自动下载。
+3. **手动检查**：所有 Electron 模式都先读取最新正式 Release 并比较版本，只返回“有新版 / 已是最新版 / 检查失败”；正式安装版确认有新版后再调用 `electron-updater` 下载。
 
 GitHub API 不可用、请求超时或达到匿名访问限制时，公告和手动检查可以失败，这是可恢复状态。不要在渲染层直接增加 GitHub 域名或关闭 CSP；该请求应继续由主进程完成。
 
-公告查询默认设置 10 秒超时，并对成功结果缓存 5 分钟；并发查询共享同一个请求。开发模式的手动检查会绕过公告缓存并重新请求，以获得适合版本判断的最新结果。Release 文本有长度上限，链接只接受 GitHub HTTPS 地址。调整这些规则时要补充超时、缓存复用、强制刷新和恶意字段测试。
+公告查询默认设置 10 秒超时，并对成功结果缓存 5 分钟；并发查询共享同一个请求。手动检查会绕过公告缓存并重新请求，以获得适合版本判断的最新结果。Release 文本有长度上限，链接只接受 GitHub HTTPS 地址。调整这些规则时要补充超时、缓存复用、强制刷新和恶意字段测试。
+
+GitHub Release 正文由 `scripts/extract-release-notes.js` 从 `CHANGELOG.md` 的同版本段落提取。不要恢复 `--generate-notes`，否则应用内公告会重新混入代码提交差异链接。
 
 修改 IPC 时需要同步检查四处：
 
@@ -199,8 +201,8 @@ npm run build
 `dist/` 中常见文件：
 
 ```text
-Vibe-Calendar-Setup-<version>.exe
-Vibe-Calendar-Setup-<version>.exe.blockmap
+VibeCalendar-Setup-<version>.exe
+VibeCalendar-Setup-<version>.exe.blockmap
 latest.yml
 ```
 

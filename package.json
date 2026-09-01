@@ -1,8 +1,8 @@
 {
   "name": "vibe-calendar",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "A beautiful, modern open-source desktop calendar",
-  "author": "Vibe Calendar Contributors",
+  "author": "VibeCalendar Contributors",
   "license": "MIT",
   "homepage": "https://github.com/Justequal/VibeCalendar#readme",
   "repository": {
@@ -20,7 +20,7 @@
     "test": "node --test",
     "test:ui": "electron scripts/ui-smoke.js",
     "test:update-network": "electron scripts/update-network-smoke.js",
-    "check:syntax": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/main/updater.js && node --check src/renderer/calendar-core.js && node --check src/renderer/interaction-core.js && node --check src/renderer/translations.js && node --check src/renderer/holidays.js && node --check src/renderer/update-controller.js && node --check src/renderer/renderer.js && node --check scripts/ui-smoke.js && node --check scripts/update-network-smoke.js",
+    "check:syntax": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/main/updater.js && node --check src/renderer/calendar-core.js && node --check src/renderer/interaction-core.js && node --check src/renderer/translations.js && node --check src/renderer/holidays.js && node --check src/renderer/update-controller.js && node --check src/renderer/renderer.js && node --check scripts/extract-release-notes.js && node --check scripts/ui-smoke.js && node --check scripts/update-network-smoke.js",
     "verify": "npm run check:syntax && npm test",
     "verify:full": "npm run verify && npm run test:ui && npm run test:update-network",
     "pack": "electron-builder --dir",
@@ -31,7 +31,7 @@
   },
   "build": {
     "appId": "com.vibecalendar.app",
-    "productName": "氛围日历",
+    "productName": "VibeCalendar",
     "directories": {
       "output": "dist"
     },
@@ -44,7 +44,7 @@
       "icon": "src/assets/icon.ico"
     },
     "nsis": {
-      "artifactName": "Vibe-Calendar-Setup-${version}.${ext}",
+      "artifactName": "VibeCalendar-Setup-${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,

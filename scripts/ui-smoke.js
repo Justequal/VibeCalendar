@@ -22,7 +22,7 @@ async function run() {
   ipcMain.handle('app:get-version', () => currentVersion);
   ipcMain.handle('updates:get-latest-release', () => ({
     version: currentVersion,
-    title: `Vibe Calendar v${currentVersion}`,
+    title: `VibeCalendar v${currentVersion}`,
     notes: `**Full Changelog**: https://github.com/Justequal/VibeCalendar/compare/v1.1.1...v${currentVersion}`
   }));
   ipcMain.handle('updates:check', () => ({
@@ -65,7 +65,7 @@ async function run() {
       };
     `);
     assert.equal(initial.language, 'zh-CN');
-    assert.equal(initial.title, '氛围日历');
+    assert.equal(initial.title, 'VibeCalendar');
     assert.equal(initial.weekday, '一');
     assert.equal(initial.cellCount, 42);
     assert.equal(initial.version, `v${currentVersion}`);
@@ -168,7 +168,7 @@ async function run() {
       };
     `);
     assert.equal(release.open, true);
-    assert.equal(release.title, `Vibe Calendar v${currentVersion}`);
+    assert.equal(release.title, `VibeCalendar v${currentVersion}`);
     assert.doesNotMatch(release.notes, /\*\*/);
     assert.match(release.notes, /Full Changelog/);
     assert.equal(release.notesFit, true);

@@ -1,9 +1,9 @@
-# 氛围日历（Vibe Calendar）
+# VibeCalendar
 
 [![Build](https://github.com/Justequal/VibeCalendar/actions/workflows/build.yml/badge.svg)](https://github.com/Justequal/VibeCalendar/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-氛围日历是一款轻量的桌面月历，使用 Electron 与原生 HTML、CSS、JavaScript 构建。它专注于快速查看日期、中国法定节假日和调休安排，并以简约、清晰的深色桌面挂件形式呈现。
+VibeCalendar 是一款轻量的桌面月历，使用 Electron 与原生 HTML、CSS、JavaScript 构建。它专注于快速查看日期、中国法定节假日和调休安排，并以简约、清晰的深色桌面挂件形式呈现。
 
 ## 主要功能
 
@@ -80,6 +80,7 @@ VibeCalendar/
 │   │   └── style.css            # 深色视觉系统与组件样式
 │   └── assets/                  # 应用和安装器图标
 ├── scripts/
+│   ├── extract-release-notes.js # 从版本维护记录生成 Release 公告
 │   ├── ui-smoke.js              # 真实 Electron 界面冒烟测试
 │   └── update-network-smoke.js  # GitHub 更新服务联网冒烟测试
 ├── test/
@@ -87,6 +88,7 @@ VibeCalendar/
 │   ├── holiday-service.test.js  # 数据校验、缓存、并发与降级
 │   ├── interaction-core.test.js # 慢速/快速滚轮幅度换算
 │   ├── main-process.test.js      # 启动检查、IPC 与实时预览
+│   ├── release-notes.test.js    # Release 公告提取规则
 │   ├── renderer-modules.test.js # 翻译词典与更新界面控制器
 │   └── updater.test.js          # 版本比较、Release 与更新服务
 ├── CHANGELOG.md                 # 用户可感知的版本变化
@@ -108,11 +110,13 @@ VibeCalendar/
 
 | 场景 | 启动检查 | 点击版本号 | 手动“检查更新” |
 | --- | --- | --- | --- |
-| 开发模式 | 不访问更新服务 | 读取 GitHub 最新正式 Release 公告 | 只比较 GitHub 最新版本，不下载或安装 |
-| 已安装的正式版本 | 静默检查并在有新版本时后台下载 | 读取 GitHub 最新正式 Release 公告 | 立即重新检查；有更新时开始后台下载 |
+| 开发模式 | 不访问更新服务 | 读取 GitHub 最新正式 Release 公告 | 比较 GitHub 最新正式版本，只显示有新版、已是最新版或检查失败 |
+| 已安装的正式版本 | 静默检查并在有新版本时后台下载 | 读取 GitHub 最新正式 Release 公告 | 先比较 GitHub 最新正式版本；有新版时再启动后台下载 |
 | 静态网页预览 | 不支持 | 入口隐藏 | 入口隐藏 |
 
-后台下载完成后，应用会提示“重启并安装”或“稍后”。选择“稍后”时，更新将在应用正常退出时安装。更新公告取自 GitHub Release 正文，并保留发布者编写时的语言；界面本身仍会随中英文设置切换。
+后台下载完成后，应用会提示“重启并安装”或“稍后”。选择“稍后”时，更新将在应用正常退出时安装。手动检查不会把下载器状态表述成“当前版本不能更新”；版本结论只根据 GitHub 最新正式 Release 判断。
+
+更新公告由维护者在 `CHANGELOG.md` 中按版本记录，发布流程提取对应版本段落写入 GitHub Release；不使用自动生成的代码差异说明。公告保留维护者编写时的语言，界面本身仍会随中英文设置切换。
 
 自动更新依赖公开 Release 中完整的安装程序、`latest.yml` 和 blockmap 文件。网络错误或更新服务故障只会影响更新相关操作，不会阻止日历使用。
 
@@ -124,7 +128,7 @@ VibeCalendar/
 winget install Justequal.VibeCalendar
 ```
 
-若 Winget 尚未检索到该包，请前往 [GitHub Releases](https://github.com/Justequal/VibeCalendar/releases) 下载最新的 `Vibe-Calendar-Setup-*.exe`。
+若 Winget 尚未检索到该包，请前往 [GitHub Releases](https://github.com/Justequal/VibeCalendar/releases) 下载最新的 `VibeCalendar-Setup-*.exe`。
 
 > [!NOTE]
 > 当前安装包可能未进行商业代码签名。Windows SmartScreen 显示“未知发布者”时，请先确认下载地址和 Release 来源可信，再决定是否运行。

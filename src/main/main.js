@@ -114,7 +114,7 @@ function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 340,
     height: 500,
-    title: '氛围日历', // 中文默认窗口标题；英文界面加载后会切换为 Vibe Calendar
+    title: 'VibeCalendar', // 品牌名在中英文界面中保持一致
     center: true, // 启动时在屏幕正中央居中显示
     show: true, // 创建后立即显示，杜绝隐藏等待导致的假死问题
     alwaysOnTop: true, // 初始启动时强制置顶，确保弹到所有应用窗口最上方
