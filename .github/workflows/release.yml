@@ -101,6 +101,7 @@ jobs:
     # 当在 GitHub 仓库中配置了 WINGET_TOKEN (具备 public_repo 权限的 Personal Access Token) 时自动触发
     - name: Submit package update to Windows Package Manager (Winget)
       if: env.WINGET_TOKEN != ''
+      continue-on-error: true
       uses: vedantmgoyal2009/winget-releaser@v2
       with:
         identifier: Justequal.VibeCalendar

@@ -4,7 +4,7 @@
  * 验证：
  * 1. 安装版与开发版在自动/手动检查更新时的行为差异；
  * 2. 版本号比较算法的正确性；
- * 3. 获取最新 GitHub Release 公告的数据解析与新版本判断。
+ * 3. 当前版本说明读取，以及最新 GitHub Release 的数据解析与新版本判断。
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -147,7 +147,9 @@ test('安装版允许用户重复手动检查更新', async () => {
 
   await withMockFetch(async () => createReleaseResponse('1.1.1'), async () => {
     await subject.module.checkForUpdates(undefined, { manual: true });
+    await new Promise((resolve) => setImmediate(resolve));
     await subject.module.checkForUpdates(undefined, { manual: true });
+    await new Promise((resolve) => setImmediate(resolve));
   });
 
   assert.equal(subject.getCheckCount(), 2);
@@ -172,8 +174,11 @@ test('并发检查复用同一个更新请求，完成后允许再次检查', as
     finishCheck({ updateInfo: { version: '1.1.1' } });
     const results = await Promise.all([first, second]);
     assert.deepEqual(results[0], results[1]);
+    await pendingCheck;
+    await new Promise((resolve) => setImmediate(resolve));
 
     await subject.module.checkForUpdates(undefined, { manual: true });
+    await new Promise((resolve) => setImmediate(resolve));
     assert.equal(subject.getCheckCount(), 2);
   });
 });
@@ -190,7 +195,7 @@ test('安装版检查到新版本时返回 available 状态及版本号', async 
   });
 });
 
-test('下载器元数据缺失时仍按正式 Release 正确报告新版本', async () => {
+test('下载器元数据缺失时仍立即按正式 Release 报告新版本', async () => {
   const subject = loadUpdater({
     currentVersion: '1.1.0',
     checkForUpdatesImpl: () => null
@@ -200,8 +205,32 @@ test('下载器元数据缺失时仍按正式 Release 正确报告新版本', as
     const result = await subject.module.checkForUpdates(undefined, { manual: true });
     assert.equal(result.status, 'available');
     assert.equal(result.latestVersion, '1.1.1');
-    assert.equal(result.downloadStarted, false);
+    assert.equal(result.downloadStarted, true);
   });
+});
+
+test('手动检查不等待后台下载器完成即可返回新版本结果', async () => {
+  const neverFinishes = new Promise(() => {});
+  const subject = loadUpdater({
+    currentVersion: '1.1.0',
+    checkForUpdatesImpl: () => neverFinishes
+  });
+
+  await withMockFetch(async () => createReleaseResponse('1.1.1'), async () => {
+    const result = await subject.module.checkForUpdates(undefined, { manual: true });
+    assert.equal(result.status, 'available');
+    assert.equal(result.latestVersion, '1.1.1');
+  });
+});
+
+test('版本号说明读取当前安装版本的内置维护记录', () => {
+  const subject = loadUpdater({ currentVersion: '1.1.4' });
+  const release = subject.module.getCurrentRelease();
+
+  assert.equal(release.version, '1.1.4');
+  assert.equal(release.title, 'VibeCalendar v1.1.4');
+  assert.match(release.notes, /当前安装版本的说明/);
+  assert.doesNotMatch(release.notes, /compare\/v1\.1\.3/);
 });
 
 test('手动检查已是最新版时不启动下载器', async () => {

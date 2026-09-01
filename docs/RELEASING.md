@@ -113,7 +113,7 @@ git push origin main --follow-tags
 7. 额外上传保留 14 天的 Actions 构建产物；
 8. 若仓库配置了 `WINGET_TOKEN`，尝试向 `microsoft/winget-pkgs` 提交版本更新。
 
-`CHANGELOG.md` 是版本公告的唯一维护来源。应用内仍读取 GitHub 上标记为 Latest 的正式 Release 正文，但该正文由发布工作流从 `CHANGELOG.md` 对应版本段落同步生成。为避免下次工作流重跑覆盖，不要只在 GitHub 页面修改公告。
+`CHANGELOG.md` 是版本说明的唯一维护来源。应用内读取安装包中的当前版本段落；GitHub Release 正文由发布工作流从同一版本段落同步生成。为避免下次工作流重跑覆盖，不要只在 GitHub 页面修改公告。
 
 ## 6. 发布后验证
 
@@ -124,7 +124,7 @@ git push origin main --follow-tags
 - [ ] `latest.yml` 的 `path` 与上传的 EXE 文件名完全一致
 - [ ] 从 Release 页面下载的安装包可以安装和启动
 - [ ] 应用底部显示正确版本号
-- [ ] 点击版本号能看到刚发布的 Release 正文
+- [ ] 点击版本号能看到当前安装版本对应的维护记录，而不是远端其他版本的说明
 - [ ] 在旧的已安装正式版本中，启动检查和手动检查能发现新版本
 - [ ] 更新下载完成后，“重启并安装”和“稍后”行为正确
 - [ ] 若启用 Winget 自动提交，检查上游清单 Pull Request 状态
@@ -169,3 +169,4 @@ Winget 自动更新的前提是 `Justequal.VibeCalendar` 已完成首次上架�
 首次上架需要维护者使用 `wingetcreate` 针对一个已发布、可公开下载的安装包生成清单并提交到 `microsoft/winget-pkgs`。此后每个正式版本的 Release 工作流才会尝试提交新版本清单。
 
 Winget 清单 Pull Request 由微软仓库独立审核；GitHub Release 创建成功不代表 Winget 会立即提供新版本。
+Winget 提交属于可选的发布后集成，失败会在 Actions 步骤中保留警告，但不再让已经完成构建、Release 和资产上传的工作流整体失败。

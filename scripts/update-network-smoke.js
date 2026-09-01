@@ -1,4 +1,4 @@
-/** 使用真实 GitHub Releases API 验证公告查询与开发版手动检查。 */
+/** 使用真实 GitHub Releases API 验证最新版本查询与开发版手动检查。 */
 const { app } = require('electron');
 const assert = require('node:assert/strict');
 const packageMetadata = require('../package.json');

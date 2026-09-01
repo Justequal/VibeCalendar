@@ -99,7 +99,7 @@ test('中英文词典拥有一致的顶层键，避免切换语言后出现空�
 test('更新界面控制器显示真实版本、公告并反馈手动检查结果', async () => {
   const { controller, documentListeners, elements } = createUpdateSubject({
     getVersion: async () => '2.3.4',
-    getLatestRelease: async () => ({ version: '2.4.0', title: 'Spring v2.4.0', notes: '**更快**' }),
+    getCurrentRelease: async () => ({ version: '2.3.4', title: 'VibeCalendar v2.3.4', notes: '**更快**' }),
     checkForUpdates: async () => ({ status: 'available', latestVersion: '2.4.0' })
   });
 
@@ -108,7 +108,7 @@ test('更新界面控制器显示真实版本、公告并反馈手动检查结�
 
   await elements.version.dispatch('click');
   assert.equal(elements.releaseModal.hidden, false);
-  assert.equal(elements.releaseVersion.textContent, 'Spring v2.4.0');
+  assert.equal(elements.releaseVersion.textContent, 'VibeCalendar v2.3.4');
   assert.equal(elements.releaseNotes.textContent, '更快');
 
   await elements.checkUpdate.dispatch('click');
@@ -130,7 +130,7 @@ test('静态网页预览会隐藏 Electron 专属的更新入口', async () => {
 test('公告和检查更新失败时显示可恢复错误状态', async () => {
   const { controller, elements } = createUpdateSubject({
     getVersion: async () => '2.3.4',
-    getLatestRelease: async () => { throw new Error('offline'); },
+    getCurrentRelease: async () => { throw new Error('missing notes'); },
     checkForUpdates: async () => ({ status: 'error' })
   });
 
@@ -139,6 +139,31 @@ test('公告和检查更新失败时显示可恢复错误状态', async () => {
   assert.equal(elements.releaseNotes.textContent, '公告失败');
 
   await elements.checkUpdate.dispatch('click');
+  assert.equal(elements.updateStatus.textContent, '失败');
+  assert.equal(elements.updateStatus.classList.contains('is-error'), true);
+  assert.equal(elements.checkUpdate.disabled, false);
+});
+
+test('手动检查立即显示进度，异常返回也不会表现为无反应', async () => {
+  let finishCheck;
+  const pendingCheck = new Promise((resolve) => {
+    finishCheck = resolve;
+  });
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    getCurrentRelease: async () => ({ version: '2.3.4', notes: '说明' }),
+    checkForUpdates: () => pendingCheck
+  });
+
+  await controller.initialize();
+  const checkAction = elements.checkUpdate.dispatch('click');
+  await Promise.resolve();
+  assert.equal(elements.updateStatus.textContent, '正在检查');
+  assert.equal(elements.updateStatus.hidden, false);
+  assert.equal(elements.checkUpdate.disabled, true);
+
+  finishCheck({ status: 'unexpected' });
+  await checkAction;
   assert.equal(elements.updateStatus.textContent, '失败');
   assert.equal(elements.updateStatus.classList.contains('is-error'), true);
   assert.equal(elements.checkUpdate.disabled, false);

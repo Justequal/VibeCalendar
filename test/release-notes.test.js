@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { extractReleaseNotes } = require('../scripts/extract-release-notes');
+const { extractReleaseNotes } = require('../src/main/release-notes');
 
 test('按版本提取维护记录且不包含代码差异链接', () => {
   const markdown = `# 更新日志

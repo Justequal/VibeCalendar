@@ -55,7 +55,7 @@ async function loadMainProcess({ livePreview = false } = {}) {
       updateCalls.push(args);
       return { status: 'up-to-date', currentVersion: '1.1.1' };
     },
-    getLatestRelease: async () => {
+    getCurrentRelease: async () => {
       releaseCalls += 1;
       return { version: '1.1.1' };
     }
@@ -156,7 +156,7 @@ test('更新 IPC 只接受本地日历页面，并正确区分公告与手动检
     '1.1.1'
   );
   assert.deepEqual(
-    await subject.ipcHandlers.get('updates:get-latest-release')(trustedEvent),
+    await subject.ipcHandlers.get('updates:get-current-release')(trustedEvent),
     { version: '1.1.1' }
   );
   assert.equal(subject.getReleaseCalls(), 1);

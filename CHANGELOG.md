@@ -9,6 +9,22 @@
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-09-01
+
+### 修复
+
+- 点击版本号现在显示当前安装版本的说明，不再错误展示远端最新版本的说明
+- 手动检查发现新版本后立即反馈，不再等待后台下载器完成；检查过程中和异常返回时也始终显示明确状态
+
+### 改进
+
+- 当前版本说明直接读取安装包内同版本的维护记录，离线时仍可查看
+
+### 维护
+
+- 版本记录解析逻辑由应用和 Release 工作流共同复用，确保两处说明一致
+- 可选的 Winget 提交失败不再阻断已经成功的 GitHub Release 和构建产物上传
+
 ## [1.1.3] - 2026-09-01
 
 ### 修复
@@ -94,7 +110,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.3...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.4...HEAD
+[1.1.4]: https://github.com/Justequal/VibeCalendar/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/Justequal/VibeCalendar/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/Justequal/VibeCalendar/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/Justequal/VibeCalendar/compare/v1.1.0...v1.1.1

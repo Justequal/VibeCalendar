@@ -8,7 +8,10 @@
  */
 const { app, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const fs = require('node:fs');
+const path = require('node:path');
 const packageMetadata = require('../../package.json');
+const { extractReleaseNotes } = require('./release-notes');
 
 // 是否已初始化 autoUpdater 监听事件
 let updaterInitialized = false;
@@ -28,6 +31,7 @@ const RELEASE_CACHE_TTL_MS = 5 * 60 * 1000;
 const RELEASE_REQUEST_TIMEOUT_MS = 10 * 1000;
 const MAX_RELEASE_TITLE_LENGTH = 200;
 const MAX_RELEASE_NOTES_LENGTH = 100_000;
+const CHANGELOG_PATH = path.resolve(__dirname, '../../CHANGELOG.md');
 
 /**
  * 获取 package.json 中配置的发布配置数组
@@ -159,6 +163,23 @@ function compareVersions(left, right) {
 }
 
 /**
+ * 读取安装包内与当前应用版本完全对应的维护记录。
+ * 该路径不访问网络，因此版本号按钮始终展示当前版本而不是远端最新版本。
+ */
+function getCurrentRelease() {
+  const version = app.getVersion();
+  const notes = extractReleaseNotes(fs.readFileSync(CHANGELOG_PATH, 'utf8'), version);
+  return Object.freeze({
+    version,
+    title: `VibeCalendar v${version}`,
+    notes: notes.slice(0, MAX_RELEASE_NOTES_LENGTH),
+    publishedAt: null,
+    url: `https://github.com/Justequal/VibeCalendar/releases/tag/v${version}`,
+    isNewer: false
+  });
+}
+
+/**
  * 初始化 electron-updater 事件监听器
  * @param {import('electron').BrowserWindow|null} parentWindow
  */
@@ -278,6 +299,19 @@ async function getLatestRelease({ forceRefresh = false } = {}) {
   }
 }
 
+/** 合并所有 electron-updater 调用，避免启动检查与按钮检查重复下载。 */
+function startAutoUpdaterCheck(parentWindow) {
+  initializeAutoUpdater(parentWindow);
+  if (!updateCheckPromise) {
+    updateCheckPromise = Promise.resolve()
+      .then(() => autoUpdater.checkForUpdates())
+      .finally(() => {
+        updateCheckPromise = null;
+      });
+  }
+  return updateCheckPromise;
+}
+
 /**
  * 检查应用更新
  * @param {import('electron').BrowserWindow|null} parentWindow
@@ -303,21 +337,11 @@ async function checkForUpdates(parentWindow, { manual = false } = {}) {
 
       let downloadStarted = false;
       if (app.isPackaged && isUpdateConfigured()) {
-        initializeAutoUpdater(parentWindow);
-        if (!updateCheckPromise) {
-          updateCheckPromise = autoUpdater.checkForUpdates()
-            .finally(() => {
-              updateCheckPromise = null;
-            });
-        }
-
-        try {
-          const updateResult = await updateCheckPromise;
-          downloadStarted = Boolean(updateResult?.updateInfo?.version);
-        } catch (error) {
-          // 已发现新版仍是有效结论。下载器失败由日志记录，后续启动或再次点击可重试。
+        // 版本结论立即返回给界面；下载器独立在后台继续，不能阻塞按钮反馈。
+        downloadStarted = true;
+        void startAutoUpdaterCheck(parentWindow).catch((error) => {
           console.error('已发现新版本，但暂时无法启动后台下载：', error);
-        }
+        });
       }
 
       return {
@@ -345,43 +369,35 @@ async function checkForUpdates(parentWindow, { manual = false } = {}) {
   }
 
   // 正式打包环境下使用 autoUpdater 进行更新检查与后台下载
-  initializeAutoUpdater(parentWindow);
-  if (updateCheckPromise) return updateCheckPromise;
-
-  updateCheckPromise = (async () => {
-    try {
-      const result = await autoUpdater.checkForUpdates();
-      const latestVersion = result?.updateInfo?.version;
-      if (!latestVersion) {
-        return {
-          // 静默检查的返回值不展示给用户；缺少元数据不再被解释为“不支持更新”。
-          status: 'up-to-date',
-          currentVersion,
-          reason: 'missing-update-info'
-        };
-      }
+  try {
+    const result = await startAutoUpdaterCheck(parentWindow);
+    const latestVersion = result?.updateInfo?.version;
+    if (!latestVersion) {
       return {
-        status: compareVersions(latestVersion, currentVersion) > 0
-          ? 'available'
-          : 'up-to-date',
+        // 静默检查的返回值不展示给用户；缺少元数据不再被解释为“不支持更新”。
+        status: 'up-to-date',
         currentVersion,
-        latestVersion,
-        version: latestVersion
+        reason: 'missing-update-info'
       };
-    } catch (error) {
-      console.error('无法启动自动更新检查：', error);
-      return { status: 'error', currentVersion, message: getErrorMessage(error) };
-    } finally {
-      updateCheckPromise = null;
     }
-  })();
-
-  return updateCheckPromise;
+    return {
+      status: compareVersions(latestVersion, currentVersion) > 0
+        ? 'available'
+        : 'up-to-date',
+      currentVersion,
+      latestVersion,
+      version: latestVersion
+    };
+  } catch (error) {
+    console.error('无法启动自动更新检查：', error);
+    return { status: 'error', currentVersion, message: getErrorMessage(error) };
+  }
 }
 
 module.exports = {
   checkForUpdates,
   compareVersions,
+  getCurrentRelease,
   getLatestRelease,
   isUpdateConfigured
 };

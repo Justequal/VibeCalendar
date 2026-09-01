@@ -20,10 +20,10 @@ async function run() {
 
   const currentVersion = packageMetadata.version;
   ipcMain.handle('app:get-version', () => currentVersion);
-  ipcMain.handle('updates:get-latest-release', () => ({
+  ipcMain.handle('updates:get-current-release', () => ({
     version: currentVersion,
     title: `VibeCalendar v${currentVersion}`,
-    notes: `**Full Changelog**: https://github.com/Justequal/VibeCalendar/compare/v1.1.1...v${currentVersion}`
+    notes: '**修复**\n\n- 手动检查更新会立即显示结果'
   }));
   ipcMain.handle('updates:check', () => ({
     status: 'up-to-date',
@@ -170,7 +170,8 @@ async function run() {
     assert.equal(release.open, true);
     assert.equal(release.title, `VibeCalendar v${currentVersion}`);
     assert.doesNotMatch(release.notes, /\*\*/);
-    assert.match(release.notes, /Full Changelog/);
+    assert.match(release.notes, /手动检查更新会立即显示结果/);
+    assert.doesNotMatch(release.notes, /compare/);
     assert.equal(release.notesFit, true);
     assert.equal(release.focused, 'release-close-btn');
 
@@ -220,7 +221,7 @@ async function run() {
   } finally {
     window.destroy();
     ipcMain.removeHandler('app:get-version');
-    ipcMain.removeHandler('updates:get-latest-release');
+    ipcMain.removeHandler('updates:get-current-release');
     ipcMain.removeHandler('updates:check');
   }
 }

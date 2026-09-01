@@ -2,7 +2,7 @@
  * 更新功能的界面控制器。
  *
  * Electron 能力只通过 preload 暴露的 appUpdates 接口使用。此模块负责更新按钮、
- * 状态提示和公告弹层，不参与日历渲染，便于独立维护更新流程。
+ * 状态提示和当前版本说明弹层，不参与日历渲染，便于独立维护更新流程。
  */
 (function exposeUpdateController(root) {
   function createUpdateController({ elements, getText }) {
@@ -21,14 +21,16 @@
       elements.releaseClose.setAttribute('aria-label', text.closeRelease);
     }
 
-    function showStatus(message, isError = false) {
+    function showStatus(message, isError = false, autoHide = true) {
       clearTimeout(statusTimer);
       elements.updateStatus.textContent = message;
       elements.updateStatus.classList.toggle('is-error', isError);
       elements.updateStatus.hidden = false;
-      statusTimer = setTimeout(() => {
-        elements.updateStatus.hidden = true;
-      }, 4500);
+      if (autoHide) {
+        statusTimer = setTimeout(() => {
+          elements.updateStatus.hidden = true;
+        }, 4500);
+      }
     }
 
     function closeReleaseNotes() {
@@ -55,7 +57,7 @@
         .trim();
     }
 
-    async function showLatestRelease() {
+    async function showCurrentRelease() {
       const text = getText();
       elements.releaseTitle.textContent = text.releaseTitle;
       elements.releaseVersion.textContent = '';
@@ -64,13 +66,13 @@
       elements.releaseClose.focus();
 
       try {
-        const release = await root.appUpdates.getLatestRelease();
+        const release = await root.appUpdates.getCurrentRelease();
         elements.releaseVersion.textContent = formatReleaseTitle(release);
         // 使用 textContent 显示远程 Release 文本，避免把远端内容解释为 HTML。
         elements.releaseNotes.textContent = formatReleaseNotes(release.notes)
           || text.releaseNoNotes;
       } catch (error) {
-        console.warn('加载更新公告失败：', error);
+        console.warn('读取当前版本说明失败：', error);
         elements.releaseNotes.textContent = text.releaseLoadError;
       }
     }
@@ -82,6 +84,7 @@
       checking = true;
       elements.checkUpdate.disabled = true;
       elements.checkUpdate.textContent = requestText.checkingUpdates;
+      showStatus(requestText.checkingUpdates, false, false);
 
       try {
         const result = await root.appUpdates.checkForUpdates();
@@ -92,6 +95,9 @@
         } else if (result.status === 'up-to-date') {
           showStatus(text.upToDate);
         } else if (result.status === 'error') {
+          showStatus(text.updateCheckError, true);
+        } else {
+          // IPC 返回结构异常时也必须结束“正在检查”状态，不能表现为没有反应。
           showStatus(text.updateCheckError, true);
         }
       } catch (error) {
@@ -105,7 +111,7 @@
     }
 
     function bindEvents() {
-      elements.version.addEventListener('click', showLatestRelease);
+      elements.version.addEventListener('click', showCurrentRelease);
       elements.checkUpdate.addEventListener('click', checkForUpdates);
       elements.releaseClose.addEventListener('click', closeReleaseNotes);
       elements.releaseModal.addEventListener('click', (event) => {
