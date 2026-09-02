@@ -17,6 +17,8 @@ const { extractReleaseNotes } = require('./release-notes');
 let updaterInitialized = false;
 // 正在进行的更新检查 Promise，避免并发重复请求
 let updateCheckPromise = null;
+// 正在进行的更新下载 Promise，避免启动检查与手动检查重复下载
+let updateDownloadPromise = null;
 // 主窗口引用，用于模态弹窗挂载
 let updateParentWindow = null;
 let downloadedUpdateVersion = null;
@@ -188,7 +190,8 @@ function initializeAutoUpdater(parentWindow) {
   if (updaterInitialized) return;
 
   updaterInitialized = true;
-  autoUpdater.autoDownload = true;
+  // 下载由本模块在确认版本后显式启动，避免仅检查到新版却没有开始下载。
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowPrerelease = false;
 
@@ -301,12 +304,37 @@ async function getLatestRelease({ forceRefresh = false } = {}) {
   }
 }
 
-/** 合并所有 electron-updater 调用，避免启动检查与按钮检查重复下载。 */
+/** 显式启动并复用下载任务，不依赖 electron-updater 的隐式自动下载。 */
+function startUpdateDownload() {
+  if (!updateDownloadPromise) {
+    updateDownloadPromise = Promise.resolve()
+      .then(() => autoUpdater.downloadUpdate())
+      .catch((error) => {
+        sendUpdateStatus({ phase: 'error' });
+        throw error;
+      })
+      .finally(() => {
+        updateDownloadPromise = null;
+      });
+  }
+  return updateDownloadPromise;
+}
+
+/** 合并所有 electron-updater 检查，并在发现新版后显式开始下载。 */
 function startAutoUpdaterCheck(parentWindow) {
   initializeAutoUpdater(parentWindow);
   if (!updateCheckPromise) {
     updateCheckPromise = Promise.resolve()
       .then(() => autoUpdater.checkForUpdates())
+      .then((result) => {
+        const latestVersion = result?.updateInfo?.version;
+        if (latestVersion && compareVersions(latestVersion, app.getVersion()) > 0) {
+          void startUpdateDownload().catch((error) => {
+            console.error('下载新版本失败：', error);
+          });
+        }
+        return result;
+      })
       .finally(() => {
         updateCheckPromise = null;
       });

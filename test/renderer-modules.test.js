@@ -56,7 +56,7 @@ const UPDATE_TEXT = Object.freeze({
   updateDownloading: '正在下载 v{version}：{percent}%',
   updateDownloaded: 'v{version} 下载完成',
   updateProgressLabel: '更新下载进度',
-  updateNow: '更新 v{version}',
+  updateNow: '更新 V{version} 版本',
   updating: '正在安装更新',
   upToDate: '已是最新',
   updateCheckError: '失败',
@@ -235,7 +235,7 @@ test('更新下载事件驱动环形进度、完成和失败状态', async () =>
   assert.equal(elements.updateStatusText.textContent, 'v2.4.0 下载完成');
   assert.equal(elements.updateProgressValue.textContent, '100%');
   assert.equal(elements.checkUpdate.disabled, false);
-  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '更新 v2.4.0');
+  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '更新 V2.4.0 版本');
   assert.equal(elements.updateStatus.getAttribute('aria-busy'), 'false');
 
   await elements.checkUpdate.dispatch('click');

@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.1.10] - 2026-09-02
+
+### 修复
+
+- 检查到新版本后由应用显式启动下载，修复只显示发现新版但没有继续下载的问题
+- 下载完成按钮改为“更新 Vx.x.x 版本”，点击后安装已经下载的增量更新包
+
 ## [1.1.9] - 2026-09-02
 
 ### 改进
@@ -143,7 +150,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.9...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.10...HEAD
+[1.1.10]: https://github.com/Justequal/VibeCalendar/compare/v1.1.9...v1.1.10
 [1.1.9]: https://github.com/Justequal/VibeCalendar/compare/v1.1.8...v1.1.9
 [1.1.8]: https://github.com/Justequal/VibeCalendar/compare/v1.1.7...v1.1.8
 [1.1.6]: https://github.com/Justequal/VibeCalendar/compare/v1.1.5...v1.1.6

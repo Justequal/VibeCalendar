@@ -241,7 +241,7 @@ async function run() {
       await new Promise((resolve) => setTimeout(resolve, 5));
       return { before, after: button.textContent, status: document.getElementById('update-status-text').textContent };
     `);
-    assert.deepEqual(downloaded.before, { text: 'Update v9.9.9', disabled: false });
+    assert.deepEqual(downloaded.before, { text: 'Update to V9.9.9', disabled: false });
     assert.equal(downloaded.after, 'Installing update…');
     assert.equal(downloaded.status, 'Installing update…');
 

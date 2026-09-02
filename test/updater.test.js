@@ -25,6 +25,7 @@ function loadUpdater({
 } = {}) {
   const autoUpdater = new EventEmitter();
   let checkCount = 0;
+  let downloadCount = 0;
   let quitCount = 0;
   let quitArguments;
   const dialogs = [];
@@ -33,6 +34,10 @@ function loadUpdater({
     checkCount += 1;
     if (checkForUpdatesImpl) return checkForUpdatesImpl();
     return { updateInfo: { version: nextVersion } };
+  };
+  autoUpdater.downloadUpdate = async () => {
+    downloadCount += 1;
+    return ['downloaded-update.exe'];
   };
   autoUpdater.quitAndInstall = (...args) => {
     quitCount += 1;
@@ -67,6 +72,7 @@ function loadUpdater({
       autoUpdater,
       dialogs,
       getCheckCount: () => checkCount,
+      getDownloadCount: () => downloadCount,
       getQuitCount: () => quitCount,
       getQuitArguments: () => quitArguments
     };
@@ -114,7 +120,7 @@ test('安装版静默下载更新，只在准备完成后提醒安装', async ()
 
   assert.equal(subject.getCheckCount(), 1);
   assert.equal(result.status, 'up-to-date');
-  assert.equal(subject.autoUpdater.autoDownload, true);
+  assert.equal(subject.autoUpdater.autoDownload, false);
   assert.equal(subject.autoUpdater.autoInstallOnAppQuit, true);
   assert.equal(subject.autoUpdater.allowPrerelease, false);
 
@@ -220,7 +226,9 @@ test('安装版检查到新版本时返回 available 状态及版本号', async 
     assert.equal(result.latestVersion, '1.1.1');
     assert.equal(result.version, '1.1.1');
     assert.equal(result.downloadStarted, true);
-    assert.equal(subject.autoUpdater.autoDownload, true);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(subject.autoUpdater.autoDownload, false);
+    assert.equal(subject.getDownloadCount(), 1);
   });
 });
 
