@@ -136,6 +136,7 @@ npm run verify:full
 - [ ] 公告打开后焦点进入弹层，关闭后返回版本按钮
 - [ ] 中英文切换会更新弹层界面文案，但不改写维护者填写的版本说明
 - [ ] 手动检查期间按钮不可重复触发，结束后恢复
+- [ ] 发现新版后自动下载，环形进度能显示百分比、完成和失败状态
 - [ ] 网络失败显示错误提示，日历本身继续可用
 
 开发模式只能验证 GitHub 最新版本查询和状态文案，不能证明安装包下载、差分更新或重启安装可用。完整更新链路必须使用已安装的旧正式版本，对一个更高版本的公开 Release 做隔离测试。
@@ -146,7 +147,7 @@ npm run verify:full
 
 1. **启动检查**：正式安装版调用 `electron-updater`；开发版直接跳过。
 2. **点击版本号**：读取安装包内 `CHANGELOG.md` 的当前版本段落，不访问网络。
-3. **手动检查**：所有 Electron 模式都先读取最新正式 Release 并比较版本，只返回“有新版 / 已是最新版 / 检查失败”；正式安装版确认有新版后立即返回结果，再让 `electron-updater` 在后台下载。
+3. **手动检查**：所有 Electron 模式都先读取最新正式 Release 并比较版本，只返回“有新版 / 已是最新版 / 检查失败”；正式安装版确认有新版后立即返回结果，再让 `electron-updater` 自动下载并通过 `updates:status` 推送进度。
 
 GitHub API 不可用、请求超时或达到匿名访问限制时，手动检查可以失败，这是可恢复状态；当前版本说明仍可离线读取。不要在渲染层直接增加 GitHub 域名或关闭 CSP；远端请求应继续由主进程完成。
 
@@ -161,6 +162,7 @@ GitHub Release 正文由 `scripts/extract-release-notes.js` 从 `CHANGELOG.md` �
 - `main.js` 中的 `ipcMain.handle`
 - `preload.js` 中公开的方法
 - `update-controller.js` 中的调用方
+- `updates:status` 事件的进度与失败状态
 - `test/updater.test.js` 中的服务行为
 
 同时保留 IPC 的本地页面调用者校验，不能只依赖窗口导航限制。

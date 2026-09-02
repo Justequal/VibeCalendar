@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-09-02
+
+### 改进
+
+- 检查到新版本后自动开始下载安装，不再只停留在“发现新版本”提示
+- 新增环形下载进度指示，清晰展示检查中、下载百分比、下载完成和失败状态
+- 开发预览环境发现新版时给出明确提示并恢复检查按钮，不再造成无响应错觉
+
 ## [1.1.4] - 2026-09-01
 
 ### 修复
@@ -110,7 +118,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.4...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.5...HEAD
+[1.1.5]: https://github.com/Justequal/VibeCalendar/compare/v1.1.4...v1.1.5
 [1.1.4]: https://github.com/Justequal/VibeCalendar/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/Justequal/VibeCalendar/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/Justequal/VibeCalendar/compare/v1.1.1...v1.1.2

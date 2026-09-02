@@ -8,29 +8,125 @@
   function createUpdateController({ elements, getText }) {
     let statusTimer;
     let checking = false;
+    let updateState = { phase: 'idle', version: '', percent: 0 };
+
+    function updateButton() {
+      const text = getText();
+      const downloading = ['available', 'downloading'].includes(updateState.phase);
+      elements.checkUpdate.disabled = checking || downloading;
+      elements.checkUpdate.textContent = checking
+        ? text.checkingUpdates
+        : downloading
+          ? text.downloadingUpdate
+          : text.checkUpdates;
+    }
 
     function syncLanguage() {
       const text = getText();
       elements.version.setAttribute('aria-label', text.versionAnnouncement);
       elements.version.title = text.versionAnnouncement;
       elements.checkUpdate.setAttribute('aria-label', text.checkUpdates);
-      elements.checkUpdate.textContent = checking
-        ? text.checkingUpdates
-        : text.checkUpdates;
+      elements.updateProgress.setAttribute('aria-label', text.updateProgressLabel);
+      updateButton();
       elements.releaseTitle.textContent = text.releaseTitle;
       elements.releaseClose.setAttribute('aria-label', text.closeRelease);
+      renderUpdateState();
     }
 
     function showStatus(message, isError = false, autoHide = true) {
       clearTimeout(statusTimer);
-      elements.updateStatus.textContent = message;
+      elements.updateStatusText.textContent = message;
       elements.updateStatus.classList.toggle('is-error', isError);
       elements.updateStatus.hidden = false;
       if (autoHide) {
         statusTimer = setTimeout(() => {
           elements.updateStatus.hidden = true;
+          updateState = { phase: 'idle', version: '', percent: 0 };
         }, 4500);
       }
+    }
+
+    function showProgress(percent) {
+      elements.updateProgress.hidden = false;
+      if (Number.isFinite(percent)) {
+        const rounded = Math.round(Math.min(100, Math.max(0, percent)));
+        elements.updateProgress.classList.toggle('is-indeterminate', false);
+        elements.updateProgress.style.setProperty('--progress', rounded);
+        elements.updateProgress.setAttribute('aria-valuenow', rounded);
+        elements.updateProgressValue.textContent = `${rounded}%`;
+        return;
+      }
+
+      elements.updateProgress.classList.toggle('is-indeterminate', true);
+      elements.updateProgress.removeAttribute('aria-valuenow');
+      elements.updateProgressValue.textContent = '…';
+    }
+
+    function hideProgress() {
+      elements.updateProgress.hidden = true;
+      elements.updateProgress.classList.toggle('is-indeterminate', false);
+      elements.updateProgress.removeAttribute('aria-valuenow');
+    }
+
+    function renderUpdateState() {
+      const text = getText();
+      const version = updateState.version || '';
+      const percent = Math.round(updateState.percent || 0);
+
+      if (updateState.phase === 'checking') {
+        showProgress();
+        showStatus(text.checkingUpdates, false, false);
+      } else if (updateState.phase === 'available') {
+        showProgress();
+        showStatus(text.updateAvailable.replace('{version}', version), false, false);
+      } else if (updateState.phase === 'found') {
+        hideProgress();
+        showStatus(text.updateFound.replace('{version}', version));
+      } else if (updateState.phase === 'downloading') {
+        showProgress(percent);
+        showStatus(
+          text.updateDownloading
+            .replace('{version}', version)
+            .replace('{percent}', percent),
+          false,
+          false
+        );
+      } else if (updateState.phase === 'downloaded') {
+        showProgress(100);
+        showStatus(text.updateDownloaded.replace('{version}', version));
+      } else if (updateState.phase === 'up-to-date') {
+        hideProgress();
+        showStatus(text.upToDate);
+      } else if (updateState.phase === 'error') {
+        hideProgress();
+        showStatus(text.updateCheckError, true);
+      } else {
+        hideProgress();
+      }
+      updateButton();
+    }
+
+    function handleUpdateStatus(status) {
+      if (!status || typeof status !== 'object') return;
+      const version = String(status.version || updateState.version || '').trim();
+
+      if (status.phase === 'available') {
+        updateState = { phase: 'available', version, percent: 0 };
+      } else if (status.phase === 'downloading') {
+        const rawPercent = Number(status.percent);
+        updateState = {
+          phase: 'downloading',
+          version,
+          percent: Number.isFinite(rawPercent) ? Math.min(100, Math.max(0, rawPercent)) : 0
+        };
+      } else if (status.phase === 'downloaded') {
+        updateState = { phase: 'downloaded', version, percent: 100 };
+      } else if (status.phase === 'error') {
+        updateState = { phase: 'error', version, percent: 0 };
+      } else {
+        return;
+      }
+      renderUpdateState();
     }
 
     function closeReleaseNotes() {
@@ -80,33 +176,42 @@
     async function checkForUpdates() {
       if (checking) return;
 
-      const requestText = getText();
       checking = true;
-      elements.checkUpdate.disabled = true;
-      elements.checkUpdate.textContent = requestText.checkingUpdates;
-      showStatus(requestText.checkingUpdates, false, false);
+      updateState = { phase: 'checking', version: '', percent: 0 };
+      renderUpdateState();
 
       try {
         const result = await root.appUpdates.checkForUpdates();
         const text = getText();
         if (result.status === 'available') {
           const version = result.latestVersion || result.version;
-          showStatus(text.updateAvailable.replace('{version}', version));
+          // 下载进度事件可能先于 IPC 结果到达，不用较旧的 available 状态覆盖它。
+          if (!['downloading', 'downloaded'].includes(updateState.phase)) {
+            updateState = {
+              phase: result.downloadStarted === false ? 'found' : 'available',
+              version,
+              percent: 0
+            };
+            renderUpdateState();
+          }
         } else if (result.status === 'up-to-date') {
-          showStatus(text.upToDate);
+          updateState = { phase: 'up-to-date', version: '', percent: 0 };
+          renderUpdateState();
         } else if (result.status === 'error') {
-          showStatus(text.updateCheckError, true);
+          updateState = { phase: 'error', version: '', percent: 0 };
+          renderUpdateState();
         } else {
           // IPC 返回结构异常时也必须结束“正在检查”状态，不能表现为没有反应。
-          showStatus(text.updateCheckError, true);
+          updateState = { phase: 'error', version: '', percent: 0 };
+          renderUpdateState();
         }
       } catch (error) {
         console.warn('手动检查更新失败：', error);
-        showStatus(getText().updateCheckError, true);
+        updateState = { phase: 'error', version: '', percent: 0 };
+        renderUpdateState();
       } finally {
         checking = false;
-        elements.checkUpdate.disabled = false;
-        elements.checkUpdate.textContent = getText().checkUpdates;
+        updateButton();
       }
     }
 
@@ -133,6 +238,7 @@
       }
 
       bindEvents();
+      root.appUpdates.onUpdateStatus?.(handleUpdateStatus);
       try {
         elements.version.textContent = `v${await root.appUpdates.getVersion()}`;
       } catch (error) {

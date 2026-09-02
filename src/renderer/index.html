@@ -62,7 +62,13 @@
         <button id="go-today-btn" class="today-btn" title="快捷键 T">回到今天</button>
       </div>
       <!-- 检查更新时的状态提示浮层 -->
-      <div id="update-status" class="update-status" role="status" aria-live="polite" hidden></div>
+      <div id="update-status" class="update-status" role="status" aria-live="polite" hidden>
+        <div id="update-progress-ring" class="update-progress-ring" role="progressbar"
+          aria-label="更新下载进度" aria-valuemin="0" aria-valuemax="100" hidden>
+          <span id="update-progress-value" class="update-progress-value">0%</span>
+        </div>
+        <span id="update-status-text"></span>
+      </div>
     </div>
 
     <!-- 当前版本说明模态弹窗 -->

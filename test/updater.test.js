@@ -100,7 +100,14 @@ async function withMockFetch(fetchImpl, callback) {
 
 test('安装版静默下载更新，只在准备完成后提醒安装', async () => {
   const subject = loadUpdater();
-  const parentWindow = { isDestroyed: () => false };
+  const statusEvents = [];
+  const parentWindow = {
+    isDestroyed: () => false,
+    webContents: {
+      isDestroyed: () => false,
+      send: (channel, status) => statusEvents.push({ channel, status })
+    }
+  };
 
   assert.equal(subject.module.isUpdateConfigured(), true);
   const result = await subject.module.checkForUpdates(parentWindow);
@@ -113,6 +120,11 @@ test('安装版静默下载更新，只在准备完成后提醒安装', async ()
 
   subject.autoUpdater.emit('update-available', { version: '1.1.1' });
   assert.equal(subject.dialogs.length, 0);
+  subject.autoUpdater.emit('download-progress', {
+    percent: 42.4,
+    transferred: 424,
+    total: 1000
+  });
 
   subject.autoUpdater.emit('update-downloaded', { version: '1.1.1' });
   await new Promise((resolve) => setImmediate(resolve));
@@ -121,6 +133,20 @@ test('安装版静默下载更新，只在准备完成后提醒安装', async ()
   assert.match(subject.dialogs[0].message, /v1\.1\.1/);
   assert.equal(subject.getQuitCount(), 1);
   assert.deepEqual(subject.getQuitArguments(), [false, true]);
+  assert.deepEqual(statusEvents, [
+    {
+      channel: 'updates:status',
+      status: { phase: 'available', version: '1.1.1' }
+    },
+    {
+      channel: 'updates:status',
+      status: { phase: 'downloading', percent: 42.4, transferred: 424, total: 1000 }
+    },
+    {
+      channel: 'updates:status',
+      status: { phase: 'downloaded', version: '1.1.1', percent: 100 }
+    }
+  ]);
 });
 
 test('同一下载完成事件重复到达时只显示一次安装提示', async () => {
@@ -192,6 +218,7 @@ test('安装版检查到新版本时返回 available 状态及版本号', async 
     assert.equal(result.latestVersion, '1.1.1');
     assert.equal(result.version, '1.1.1');
     assert.equal(result.downloadStarted, true);
+    assert.equal(subject.autoUpdater.autoDownload, true);
   });
 });
 

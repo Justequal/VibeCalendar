@@ -25,11 +25,23 @@ async function run() {
     title: `VibeCalendar v${currentVersion}`,
     notes: '**修复**\n\n- 手动检查更新会立即显示结果'
   }));
-  ipcMain.handle('updates:check', () => ({
-    status: 'up-to-date',
-    currentVersion,
-    latestVersion: currentVersion
-  }));
+  ipcMain.handle('updates:check', (event) => {
+    setTimeout(() => {
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('updates:status', {
+          phase: 'downloading',
+          version: '9.9.9',
+          percent: 42.4
+        });
+      }
+    }, 5);
+    return {
+      status: 'available',
+      currentVersion,
+      latestVersion: '9.9.9',
+      downloadStarted: true
+    };
+  });
 
   const rendererEntry = path.resolve(__dirname, '../src/renderer/index.html');
   const window = new BrowserWindow({
@@ -194,14 +206,22 @@ async function run() {
       return {
         modalHidden: document.getElementById('release-modal').hidden,
         focused: document.activeElement?.id,
-        status: document.getElementById('update-status').textContent,
-        checkDisabled: document.getElementById('check-update-btn').disabled
+        status: document.getElementById('update-status-text').textContent,
+        progress: document.getElementById('update-progress-value').textContent,
+        progressHidden: document.getElementById('update-progress-ring').hidden,
+        progressNow: document.getElementById('update-progress-ring').getAttribute('aria-valuenow'),
+        checkDisabled: document.getElementById('check-update-btn').disabled,
+        checkText: document.getElementById('check-update-btn').textContent
       };
     `);
     assert.equal(updateAndClose.modalHidden, true);
     assert.equal(updateAndClose.focused, 'version-btn');
-    assert.equal(updateAndClose.status, 'You are using the latest version');
-    assert.equal(updateAndClose.checkDisabled, false);
+    assert.equal(updateAndClose.status, 'Downloading v9.9.9: 42%');
+    assert.equal(updateAndClose.progress, '42%');
+    assert.equal(updateAndClose.progressHidden, false);
+    assert.equal(updateAndClose.progressNow, '42');
+    assert.equal(updateAndClose.checkDisabled, true);
+    assert.equal(updateAndClose.checkText, 'Downloading');
 
     const fastWheel = await invoke(window, `
       const before = document.querySelector('.day')?.dataset.date;
@@ -217,7 +237,7 @@ async function run() {
     `);
     assert.equal(fastWheel.days, 21);
 
-    console.log('UI smoke passed: calendar, navigation, i18n, week start, wheel, version, release notes, manual update.');
+    console.log('UI smoke passed: calendar, navigation, i18n, week start, wheel, version, release notes, update download progress.');
   } finally {
     window.destroy();
     ipcMain.removeHandler('app:get-version');

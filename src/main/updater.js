@@ -32,6 +32,7 @@ const RELEASE_REQUEST_TIMEOUT_MS = 10 * 1000;
 const MAX_RELEASE_TITLE_LENGTH = 200;
 const MAX_RELEASE_NOTES_LENGTH = 100_000;
 const CHANGELOG_PATH = path.resolve(__dirname, '../../CHANGELOG.md');
+const UPDATE_STATUS_CHANNEL = 'updates:status';
 
 /**
  * 获取 package.json 中配置的发布配置数组
@@ -179,6 +180,18 @@ function getCurrentRelease() {
   });
 }
 
+function sendUpdateStatus(status) {
+  const webContents = updateParentWindow?.webContents;
+  if (
+    !updateParentWindow
+    || updateParentWindow.isDestroyed()
+    || !webContents
+    || webContents.isDestroyed?.()
+  ) return;
+
+  webContents.send(UPDATE_STATUS_CHANNEL, Object.freeze(status));
+}
+
 /**
  * 初始化 electron-updater 事件监听器
  * @param {import('electron').BrowserWindow|null} parentWindow
@@ -193,11 +206,27 @@ function initializeAutoUpdater(parentWindow) {
   autoUpdater.allowPrerelease = false;
 
   autoUpdater.on('update-available', (info) => {
-    console.info(`发现 VibeCalendar v${info?.version || '新版'}，正在后台下载。`);
+    const version = String(info?.version || '').trim();
+    console.info(`发现 VibeCalendar v${version || '新版'}，正在后台下载。`);
+    sendUpdateStatus({ phase: 'available', version });
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    const rawPercent = Number(progress?.percent);
+    const percent = Number.isFinite(rawPercent)
+      ? Math.min(100, Math.max(0, rawPercent))
+      : 0;
+    sendUpdateStatus({
+      phase: 'downloading',
+      percent,
+      transferred: Number.isFinite(Number(progress?.transferred)) ? Number(progress.transferred) : 0,
+      total: Number.isFinite(Number(progress?.total)) ? Number(progress.total) : 0
+    });
   });
 
   autoUpdater.on('update-downloaded', async (info) => {
     const downloadedVersion = String(info?.version || '').trim();
+    sendUpdateStatus({ phase: 'downloaded', version: downloadedVersion, percent: 100 });
     const promptKey = downloadedVersion || 'unknown-version';
     if (promptedDownloadVersion === promptKey) return;
     promptedDownloadVersion = promptKey;
@@ -225,6 +254,7 @@ function initializeAutoUpdater(parentWindow) {
 
   autoUpdater.on('error', (error) => {
     console.error('自动更新检查失败：', error);
+    sendUpdateStatus({ phase: 'error' });
   });
 }
 
