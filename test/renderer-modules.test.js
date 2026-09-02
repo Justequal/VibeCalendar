@@ -133,6 +133,7 @@ test('更新界面控制器显示真实版本、公告并反馈手动检查结�
   assert.equal(elements.updateProgress.classList.contains('is-indeterminate'), true);
   assert.equal(elements.updateStatus.getAttribute('aria-busy'), 'true');
   assert.equal(elements.checkUpdate.disabled, true);
+  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '正在下载');
 
   documentListeners.get('keydown')({ key: 'Escape' });
   assert.equal(elements.releaseModal.hidden, true);
@@ -234,6 +235,7 @@ test('更新下载事件驱动环形进度、完成和失败状态', async () =>
   assert.equal(elements.updateStatusText.textContent, 'v2.4.0 下载完成');
   assert.equal(elements.updateProgressValue.textContent, '100%');
   assert.equal(elements.checkUpdate.disabled, false);
+  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '更新 v2.4.0');
   assert.equal(elements.updateStatus.getAttribute('aria-busy'), 'false');
 
   await elements.checkUpdate.dispatch('click');

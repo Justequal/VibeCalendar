@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+## [1.1.9] - 2026-09-02
+
+### 改进
+
+- 更新按钮会随检查、下载、安装和“更新 vX”状态同步无障碍标签
+
 ## [1.1.8] - 2026-09-02
 
 ### 改进
@@ -137,7 +143,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.8...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.9...HEAD
+[1.1.9]: https://github.com/Justequal/VibeCalendar/compare/v1.1.8...v1.1.9
 [1.1.8]: https://github.com/Justequal/VibeCalendar/compare/v1.1.7...v1.1.8
 [1.1.6]: https://github.com/Justequal/VibeCalendar/compare/v1.1.5...v1.1.6
 [1.1.5]: https://github.com/Justequal/VibeCalendar/compare/v1.1.4...v1.1.5

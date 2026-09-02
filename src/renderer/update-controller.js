@@ -14,16 +14,18 @@
       const text = getText();
       const downloading = ['available', 'downloading'].includes(updateState.phase);
       const installing = updateState.phase === 'installing';
-      elements.checkUpdate.disabled = checking || downloading || installing;
-      elements.checkUpdate.textContent = checking
+      const buttonLabel = checking
         ? text.checkingUpdates
         : installing
           ? text.updating
           : updateState.phase === 'downloaded'
             ? text.updateNow.replace('{version}', updateState.version)
-        : downloading
-          ? text.downloadingUpdate
-          : text.checkUpdates;
+            : downloading
+              ? text.downloadingUpdate
+              : text.checkUpdates;
+      elements.checkUpdate.disabled = checking || downloading || installing;
+      elements.checkUpdate.textContent = buttonLabel;
+      elements.checkUpdate.setAttribute('aria-label', buttonLabel);
       elements.checkUpdate.style.setProperty(
         '--update-progress',
         downloading || updateState.phase === 'downloaded' ? Math.round(updateState.percent || 0) : 0
@@ -34,7 +36,6 @@
       const text = getText();
       elements.version.setAttribute('aria-label', text.versionAnnouncement);
       elements.version.title = text.versionAnnouncement;
-      elements.checkUpdate.setAttribute('aria-label', text.checkUpdates);
       elements.updateProgress.setAttribute('aria-label', text.updateProgressLabel);
       updateButton();
       elements.releaseTitle.textContent = text.releaseTitle;
