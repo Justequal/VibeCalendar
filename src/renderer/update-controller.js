@@ -41,6 +41,7 @@
       if (autoHide) {
         statusTimer = setTimeout(() => {
           elements.updateStatus.hidden = true;
+          elements.updateStatus.setAttribute('aria-busy', 'false');
           updateState = { phase: 'idle', version: '', percent: 0 };
         }, 4500);
       }
@@ -103,6 +104,8 @@
       } else {
         hideProgress();
       }
+      const busy = ['checking', 'available', 'downloading'].includes(updateState.phase);
+      elements.updateStatus.setAttribute('aria-busy', String(busy));
       updateButton();
     }
 
