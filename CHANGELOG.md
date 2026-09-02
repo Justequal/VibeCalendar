@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.1.11] - 2026-09-02
+
+### 修复
+
+- 安装目录统一为所选父目录下的 `VibeCalendar`，已有同名目录不会再次嵌套
+- 更新时迁移旧版用户级安装路径并原位覆盖，同时清理旧程序目录残留
+- Windows 下全量测试改为串行执行，避免并发测试进程偶发产生无效失败
+
 ## [1.1.10] - 2026-09-02
 
 ### 修复
@@ -150,7 +158,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.10...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.11...HEAD
+[1.1.11]: https://github.com/Justequal/VibeCalendar/compare/v1.1.10...v1.1.11
 [1.1.10]: https://github.com/Justequal/VibeCalendar/compare/v1.1.9...v1.1.10
 [1.1.9]: https://github.com/Justequal/VibeCalendar/compare/v1.1.8...v1.1.9
 [1.1.8]: https://github.com/Justequal/VibeCalendar/compare/v1.1.7...v1.1.8

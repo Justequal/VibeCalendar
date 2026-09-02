@@ -104,7 +104,7 @@ async function withMockFetch(fetchImpl, callback) {
   }
 }
 
-test('安装版静默下载更新，只在准备完成后提醒安装', async () => {
+test('安装版显式下载更新，并在完成后等待用户点击安装', async () => {
   const subject = loadUpdater();
   const statusEvents = [];
   const parentWindow = {

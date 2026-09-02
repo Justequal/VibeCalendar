@@ -1,6 +1,6 @@
 {
   "name": "vibe-calendar",
-  "version": "1.1.10",
+  "version": "1.1.11",
   "description": "A beautiful, modern open-source desktop calendar",
   "author": "VibeCalendar Contributors",
   "license": "MIT",
@@ -17,7 +17,7 @@
     "start": "electron .",
     "dev": "electron . --live-preview",
     "preview:web": "explorer src\\renderer\\index.html",
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1",
     "test:ui": "electron scripts/ui-smoke.js",
     "test:update-network": "electron scripts/update-network-smoke.js",
     "check:syntax": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/main/release-notes.js && node --check src/main/updater.js && node --check src/renderer/calendar-core.js && node --check src/renderer/interaction-core.js && node --check src/renderer/translations.js && node --check src/renderer/holidays.js && node --check src/renderer/update-controller.js && node --check src/renderer/renderer.js && node --check scripts/extract-release-notes.js && node --check scripts/ui-smoke.js && node --check scripts/update-network-smoke.js",
@@ -46,6 +46,7 @@
     },
     "nsis": {
       "artifactName": "VibeCalendar-Setup-${version}.${ext}",
+      "include": "build/installer.nsh",
       "oneClick": false,
       "perMachine": true,
       "allowElevation": true,
