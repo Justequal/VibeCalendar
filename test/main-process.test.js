@@ -8,6 +8,7 @@ async function loadMainProcess({ livePreview = false } = {}) {
   const ipcHandlers = new Map();
   const appListeners = new Map();
   const updateCalls = [];
+  const installCalls = [];
   let releaseCalls = 0;
   let watcher;
 
@@ -58,6 +59,10 @@ async function loadMainProcess({ livePreview = false } = {}) {
     getCurrentRelease: async () => {
       releaseCalls += 1;
       return { version: '1.1.1' };
+    },
+    installUpdate: async () => {
+      installCalls.push(true);
+      return { status: 'installing' };
     }
   };
   const fs = {
@@ -100,6 +105,7 @@ async function loadMainProcess({ livePreview = false } = {}) {
     appListeners,
     ipcHandlers,
     updateCalls,
+    installCalls,
     getReleaseCalls: () => releaseCalls,
     watcher,
     window: FakeBrowserWindow.instances[0]
@@ -150,7 +156,7 @@ test('更新 IPC 只接受本地日历页面，并正确区分公告与手动检
     sender: {}
   };
 
-  assert.equal(subject.ipcHandlers.size, 3);
+  assert.equal(subject.ipcHandlers.size, 4);
   assert.equal(
     subject.ipcHandlers.get('app:get-version')(trustedEvent),
     '1.1.1'
@@ -166,6 +172,12 @@ test('更新 IPC 只接受本地日历页面，并正确区分公告与手动检
   assert.equal(subject.updateCalls.length, 2);
   assert.equal(subject.updateCalls[1][0], subject.window);
   assert.deepEqual(subject.updateCalls[1][1], { manual: true });
+
+  assert.deepEqual(
+    await subject.ipcHandlers.get('updates:install')(trustedEvent),
+    { status: 'installing' }
+  );
+  assert.equal(subject.installCalls.length, 1);
 
   const untrustedEvent = {
     senderFrame: { url: 'https://example.com/' },

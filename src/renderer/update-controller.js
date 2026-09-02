@@ -13,12 +13,21 @@
     function updateButton() {
       const text = getText();
       const downloading = ['available', 'downloading'].includes(updateState.phase);
-      elements.checkUpdate.disabled = checking || downloading;
+      const installing = updateState.phase === 'installing';
+      elements.checkUpdate.disabled = checking || downloading || installing;
       elements.checkUpdate.textContent = checking
         ? text.checkingUpdates
+        : installing
+          ? text.updating
+          : updateState.phase === 'downloaded'
+            ? text.updateNow.replace('{version}', updateState.version)
         : downloading
           ? text.downloadingUpdate
           : text.checkUpdates;
+      elements.checkUpdate.style.setProperty(
+        '--update-progress',
+        downloading || updateState.phase === 'downloaded' ? Math.round(updateState.percent || 0) : 0
+      );
     }
 
     function syncLanguage() {
@@ -95,6 +104,9 @@
       } else if (updateState.phase === 'downloaded') {
         showProgress(100);
         showStatus(text.updateDownloaded.replace('{version}', version));
+      } else if (updateState.phase === 'installing') {
+        showProgress(100);
+        showStatus(text.updating, false, false);
       } else if (updateState.phase === 'up-to-date') {
         hideProgress();
         showStatus(text.upToDate);
@@ -178,6 +190,19 @@
 
     async function checkForUpdates() {
       if (checking) return;
+
+      if (updateState.phase === 'downloaded') {
+        updateState = { ...updateState, phase: 'installing' };
+        renderUpdateState();
+        try {
+          await root.appUpdates.installUpdate();
+        } catch (error) {
+          console.warn('安装更新失败：', error);
+          updateState = { ...updateState, phase: 'downloaded' };
+          renderUpdateState();
+        }
+        return;
+      }
 
       checking = true;
       updateState = { phase: 'checking', version: '', percent: 0 };

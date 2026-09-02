@@ -9,6 +9,19 @@
 
 ## [Unreleased]
 
+## [1.1.8] - 2026-09-02
+
+### 改进
+
+- 下载更新时直接在检查更新按钮中显示进度
+- 下载完成后可点击“更新 vX”执行已下载的增量安装包
+
+## [1.1.7] - 2026-09-02
+
+### 修复
+
+- 修正 Windows 安装更新的安装范围，统一使用机器级安装记录，避免更新后安装目录不断嵌套变长
+
 ## [1.1.6] - 2026-09-02
 
 ### 改进
@@ -124,7 +137,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.6...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.8...HEAD
+[1.1.8]: https://github.com/Justequal/VibeCalendar/compare/v1.1.7...v1.1.8
 [1.1.6]: https://github.com/Justequal/VibeCalendar/compare/v1.1.5...v1.1.6
 [1.1.5]: https://github.com/Justequal/VibeCalendar/compare/v1.1.4...v1.1.5
 [1.1.4]: https://github.com/Justequal/VibeCalendar/compare/v1.1.3...v1.1.4

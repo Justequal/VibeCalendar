@@ -11,6 +11,7 @@ const IPC_CHANNELS = Object.freeze({
   getVersion: 'app:get-version',
   getCurrentRelease: 'updates:get-current-release',
   checkForUpdates: 'updates:check',
+  installUpdate: 'updates:install',
   updateStatus: 'updates:status'
 });
 
@@ -33,6 +34,9 @@ contextBridge.exposeInMainWorld('appUpdates', Object.freeze({
    * @returns {Promise<{status: string, currentVersion: string, latestVersion?: string, version?: string, message?: string}>}
    */
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
+
+  /** 安装已完成下载的增量更新包。 */
+  installUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.installUpdate),
 
   /**
    * 订阅后台下载进度、完成或失败状态；返回函数用于取消订阅。

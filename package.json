@@ -1,6 +1,6 @@
 {
   "name": "vibe-calendar",
-  "version": "1.1.6",
+  "version": "1.1.8",
   "description": "A beautiful, modern open-source desktop calendar",
   "author": "VibeCalendar Contributors",
   "license": "MIT",
@@ -47,6 +47,8 @@
     "nsis": {
       "artifactName": "VibeCalendar-Setup-${version}.${ext}",
       "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "installerIcon": "src/assets/icon.ico",

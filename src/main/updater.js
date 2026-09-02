@@ -2,11 +2,11 @@
  * 应用自动更新与版本检查模块。
  *
  * 核心逻辑：
- * 1. 安装版启动后静默检查并在后台下载更新包。下载完成后提示用户选择“立即重启安装”或“稍后在退出时安装”。
+ * 1. 安装版启动后静默检查并在后台下载更新包；下载完成后等待用户点击“更新 vX”安装。
  * 2. 手动检查统一通过 GitHub Release 判断“有新版 / 已是最新版”，不向用户暴露下载器能力差异。
  * 3. 支持从 GitHub Releases API 查询最新版本发布日志，供版本号点击弹窗使用。
  */
-const { app, dialog } = require('electron');
+const { app } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -19,8 +19,7 @@ let updaterInitialized = false;
 let updateCheckPromise = null;
 // 主窗口引用，用于模态弹窗挂载
 let updateParentWindow = null;
-// 已提示过安装的版本，避免更新器重复发出事件时叠加多个原生对话框
-let promptedDownloadVersion = null;
+let downloadedUpdateVersion = null;
 // Release 请求在短时间内复用，减少重复点击对 GitHub API 的压力
 let latestReleaseCache = null;
 let latestReleasePromise = null;
@@ -55,18 +54,6 @@ function isUpdateConfigured() {
       && config.owner !== 'YourUsername'
     )
   ));
-}
-
-/**
- * 在指定窗口或顶层弹出原生消息框
- * @param {import('electron').BrowserWindow|null} parentWindow 目标父窗口
- * @param {import('electron').MessageBoxOptions} options 对话框选项
- * @returns {Promise<import('electron').MessageBoxReturnValue>}
- */
-function showDialog(parentWindow, options) {
-  return parentWindow && !parentWindow.isDestroyed()
-    ? dialog.showMessageBox(parentWindow, options)
-    : dialog.showMessageBox(options);
 }
 
 /**
@@ -226,36 +213,21 @@ function initializeAutoUpdater(parentWindow) {
 
   autoUpdater.on('update-downloaded', async (info) => {
     const downloadedVersion = String(info?.version || '').trim();
+    downloadedUpdateVersion = downloadedVersion || downloadedUpdateVersion || 'unknown-version';
     sendUpdateStatus({ phase: 'downloaded', version: downloadedVersion, percent: 100 });
-    const promptKey = downloadedVersion || 'unknown-version';
-    if (promptedDownloadVersion === promptKey) return;
-    promptedDownloadVersion = promptKey;
-
-    try {
-      const result = await showDialog(updateParentWindow, {
-        type: 'info',
-        title: '更新准备就绪',
-        message: `VibeCalendar v${downloadedVersion || '新版'} 已准备就绪。`,
-        detail: '立即重启即可完成安装；选择“稍后”则会在你正常退出应用时自动安装。',
-        buttons: ['重启并安装', '稍后'],
-        defaultId: 0,
-        cancelId: 1,
-        noLink: true
-      });
-
-      if (result.response === 0) {
-        autoUpdater.quitAndInstall(false, true);
-      }
-    } catch (error) {
-      if (promptedDownloadVersion === promptKey) promptedDownloadVersion = null;
-      console.error('无法显示更新安装提示：', error);
-    }
   });
 
   autoUpdater.on('error', (error) => {
     console.error('自动更新检查失败：', error);
     sendUpdateStatus({ phase: 'error' });
   });
+}
+
+/** 在渲染层明确点击“更新 vX”后安装已下载的增量包。 */
+function installUpdate() {
+  if (!downloadedUpdateVersion) return { status: 'not-ready' };
+  autoUpdater.quitAndInstall(false, true);
+  return { status: 'installing', version: downloadedUpdateVersion };
 }
 
 /**
@@ -429,5 +401,6 @@ module.exports = {
   compareVersions,
   getCurrentRelease,
   getLatestRelease,
-  isUpdateConfigured
+  isUpdateConfigured,
+  installUpdate
 };

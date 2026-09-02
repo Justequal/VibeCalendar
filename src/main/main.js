@@ -8,7 +8,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { fileURLToPath } = require('url');
-const { checkForUpdates, getCurrentRelease } = require('./updater');
+const { checkForUpdates, getCurrentRelease, installUpdate } = require('./updater');
 
 const LIVE_PREVIEW_ENABLED = process.argv.includes('--live-preview');
 const RENDERER_DIRECTORY = path.join(__dirname, '../renderer');
@@ -16,7 +16,8 @@ const RENDERER_ENTRY_PATH = path.resolve(RENDERER_DIRECTORY, 'index.html');
 const IPC_CHANNELS = Object.freeze({
   getVersion: 'app:get-version',
   getCurrentRelease: 'updates:get-current-release',
-  checkForUpdates: 'updates:check'
+  checkForUpdates: 'updates:check',
+  installUpdate: 'updates:install'
 });
 let ipcHandlersRegistered = false;
 
@@ -68,6 +69,10 @@ function registerIpcHandlers() {
       BrowserWindow.fromWebContents(event.sender),
       { manual: true }
     ))
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.installUpdate,
+    fromTrustedRenderer(() => installUpdate())
   );
 }
 

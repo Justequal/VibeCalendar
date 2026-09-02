@@ -418,13 +418,18 @@ h1 {
 }
 
 .update-btn {
+  --update-progress: 0;
   color: #c7d2fe;
-  background: rgba(129, 140, 248, 0.07);
+  background: linear-gradient(90deg, rgba(129, 140, 248, 0.46) calc(var(--update-progress) * 1%), rgba(129, 140, 248, 0.07) calc(var(--update-progress) * 1%));
 }
 
-.today-btn:hover,
-.update-btn:hover:not(:disabled) {
+.today-btn:hover {
   background: rgba(129, 140, 248, 0.26);
+  border-color: rgba(129, 140, 248, 0.48);
+}
+
+.update-btn:hover:not(:disabled) {
+  background: linear-gradient(90deg, rgba(129, 140, 248, 0.56) calc(var(--update-progress) * 1%), rgba(129, 140, 248, 0.26) calc(var(--update-progress) * 1%));
   border-color: rgba(129, 140, 248, 0.48);
 }
 

@@ -33,6 +33,15 @@ async function run() {
           version: '9.9.9',
           percent: 42.4
         });
+        setTimeout(() => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('updates:status', {
+              phase: 'downloaded',
+              version: '9.9.9',
+              percent: 100
+            });
+          }
+        }, 70);
       }
     }, 5);
     return {
@@ -42,6 +51,7 @@ async function run() {
       downloadStarted: true
     };
   });
+  ipcMain.handle('updates:install', () => ({ status: 'installing', version: '9.9.9' }));
 
   const rendererEntry = path.resolve(__dirname, '../src/renderer/index.html');
   const window = new BrowserWindow({
@@ -222,6 +232,18 @@ async function run() {
     assert.equal(updateAndClose.progressNow, '42');
     assert.equal(updateAndClose.checkDisabled, true);
     assert.equal(updateAndClose.checkText, 'Downloading');
+
+    const downloaded = await invoke(window, `
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const button = document.getElementById('check-update-btn');
+      const before = { text: button.textContent, disabled: button.disabled };
+      button.click();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return { before, after: button.textContent, status: document.getElementById('update-status-text').textContent };
+    `);
+    assert.deepEqual(downloaded.before, { text: 'Update v9.9.9', disabled: false });
+    assert.equal(downloaded.after, 'Installing update…');
+    assert.equal(downloaded.status, 'Installing update…');
 
     const fastWheel = await invoke(window, `
       const before = document.querySelector('.day')?.dataset.date;

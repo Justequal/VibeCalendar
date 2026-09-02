@@ -129,8 +129,9 @@ test('安装版静默下载更新，只在准备完成后提醒安装', async ()
   subject.autoUpdater.emit('update-downloaded', { version: '1.1.1' });
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.equal(subject.dialogs.length, 1);
-  assert.match(subject.dialogs[0].message, /v1\.1\.1/);
+  assert.equal(subject.dialogs.length, 0);
+  assert.equal(subject.getQuitCount(), 0);
+  assert.deepEqual(subject.module.installUpdate(), { status: 'installing', version: '1.1.1' });
   assert.equal(subject.getQuitCount(), 1);
   assert.deepEqual(subject.getQuitArguments(), [false, true]);
   assert.deepEqual(statusEvents, [
@@ -149,7 +150,7 @@ test('安装版静默下载更新，只在准备完成后提醒安装', async ()
   ]);
 });
 
-test('同一下载完成事件重复到达时只显示一次安装提示', async () => {
+test('同一下载完成事件重复到达时仍只保留一次可安装状态', async () => {
   const subject = loadUpdater({ dialogResponse: 1 });
   await subject.module.checkForUpdates();
 
@@ -157,8 +158,9 @@ test('同一下载完成事件重复到达时只显示一次安装提示', async
   subject.autoUpdater.emit('update-downloaded', { version: '1.1.2' });
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.equal(subject.dialogs.length, 1);
-  assert.equal(subject.getQuitCount(), 0);
+  assert.equal(subject.dialogs.length, 0);
+  assert.deepEqual(subject.module.installUpdate(), { status: 'installing', version: '1.1.2' });
+  assert.equal(subject.getQuitCount(), 1);
 });
 
 test('开发版自动检查不访问更新服务', async () => {
