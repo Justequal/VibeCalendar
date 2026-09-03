@@ -238,8 +238,8 @@ async function run() {
       await new Promise((resolve) => setTimeout(resolve, 5));
       return { before, after: button.textContent };
     `);
-    assert.deepEqual(downloaded.before, { text: 'Restart to update V9.9.9', disabled: false });
-    assert.equal(downloaded.after, 'Installing update…');
+    assert.deepEqual(downloaded.before, { text: 'Quick restart to update V9.9.9', disabled: false });
+    assert.equal(downloaded.after, 'Restarting to update…');
 
     const fastWheel = await invoke(window, `
       const before = document.querySelector('.day')?.dataset.date;

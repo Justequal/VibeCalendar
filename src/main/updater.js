@@ -256,10 +256,10 @@ function initializeAutoUpdater(parentWindow) {
 }
 
 /**
- * 在渲染层明确点击“重启更新 vX”后安装已下载的差分更新包。
+ * 在渲染层明确点击“快速重启更新 vX”后安装已下载的差分更新包。
  *
- * 先留出一个短帧让渲染进程画出“正在安装更新”，再静默退出并重新启动新版，
- * 防止点击后窗口立刻消失造成没有响应的错觉。重复点击只会安排一次安装。
+ * 安装器接管后立即隐藏旧窗口，随后静默覆盖安装并重新启动新版。electron-updater
+ * 会在当前 IPC 调用结束后退出应用，因此无需再增加人为等待。重复点击只安排一次。
  */
 function installUpdate() {
   if (!downloadedUpdateVersion) return { status: 'not-ready' };
@@ -267,17 +267,19 @@ function installUpdate() {
 
   installScheduled = true;
   sendUpdateStatus({ phase: 'installing', version: downloadedUpdateVersion, percent: 100 });
-  const installTimer = setTimeout(() => {
-    try {
-      // 静默安装已下载的增量包；安装完成后自动拉起新版应用。
-      autoUpdater.quitAndInstall(true, true);
-    } catch (error) {
-      installScheduled = false;
-      console.error('安装已下载的更新失败：', error);
-      sendUpdateStatus({ phase: 'error' });
+  try {
+    // 静默启动增量安装器；安装完成后强制拉起新版应用。
+    autoUpdater.quitAndInstall(true, true);
+    // 安装器已成功接管后立刻收起旧窗口，减少等待与界面残留感。
+    if (updateParentWindow && !updateParentWindow.isDestroyed()) {
+      updateParentWindow.hide?.();
     }
-  }, 120);
-  installTimer.unref?.();
+  } catch (error) {
+    installScheduled = false;
+    console.error('安装已下载的更新失败：', error);
+    sendUpdateStatus({ phase: 'error' });
+    return { status: 'error', version: downloadedUpdateVersion };
+  }
   return { status: 'installing', version: downloadedUpdateVersion };
 }
 

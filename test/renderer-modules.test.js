@@ -56,8 +56,8 @@ const UPDATE_TEXT = Object.freeze({
   updateAvailable: '发现 v{version}',
   updateDownloading: '正在下载 v{version}：{percent}%',
   updateDownloaded: 'v{version} 下载完成',
-  updateNow: '重启更新 V{version}',
-  updating: '正在安装更新',
+  updateNow: '快速重启更新 V{version}',
+  updating: '正在快速重启',
   upToDate: '已是最新',
   updateCheckError: '失败',
   releaseTitle: '更新公告',
@@ -228,11 +228,11 @@ test('更新下载事件驱动按钮背景进度、重启更新和失败状态',
   updateListener({ phase: 'downloaded', version: '2.4.0' });
   assert.equal(elements.checkUpdate.style.getPropertyValue('--update-progress'), 100);
   assert.equal(elements.checkUpdate.disabled, false);
-  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '重启更新 V2.4.0');
+  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '快速重启更新 V2.4.0');
   assert.equal(elements.checkUpdate.classList.contains('is-ready'), true);
 
   await elements.checkUpdate.dispatch('click');
-  assert.equal(elements.checkUpdate.textContent, '正在安装更新');
+  assert.equal(elements.checkUpdate.textContent, '正在快速重启');
   assert.equal(elements.checkUpdate.disabled, true);
 
   updateListener({ phase: 'error' });
@@ -251,7 +251,27 @@ test('窗口加载后恢复主进程已经下载完成的更新状态', async ()
   });
 
   await controller.initialize();
-  assert.equal(elements.checkUpdate.textContent, '重启更新 V2.4.0');
+  assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
   assert.equal(elements.checkUpdate.disabled, false);
   assert.equal(elements.checkUpdate.classList.contains('is-ready'), true);
+});
+
+test('快速重启未被主进程接管时恢复可点击更新按钮', async () => {
+  let updateListener;
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    getUpdateState: async () => ({ phase: 'downloaded', version: '2.4.0', percent: 100 }),
+    getCurrentRelease: async () => ({ version: '2.3.4', notes: '说明' }),
+    installUpdate: async () => ({ status: 'error' }),
+    onUpdateStatus: (listener) => {
+      updateListener = listener;
+      return () => {};
+    }
+  });
+
+  await controller.initialize();
+  await elements.checkUpdate.dispatch('click');
+  assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
+  assert.equal(elements.checkUpdate.disabled, false);
+  assert.equal(typeof updateListener, 'function');
 });

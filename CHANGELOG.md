@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+## [1.1.18] - 2026-09-03
+
+### 改进
+
+- 下载完成后的操作明确为“快速重启更新”，点击一次即可进入自动更新
+- 移除重启前的人为等待，安装器接管后立即收起旧窗口，在后台静默覆盖安装并自动打开新版
+- 更新启动失败时恢复可点击状态，避免按钮停留在无法继续的安装状态
+
 ## [1.1.17] - 2026-09-03
 
 ### 改进
@@ -199,7 +207,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.17...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.18...HEAD
+[1.1.18]: https://github.com/Justequal/VibeCalendar/compare/v1.1.17...v1.1.18
 [1.1.17]: https://github.com/Justequal/VibeCalendar/compare/v1.1.16...v1.1.17
 [1.1.16]: https://github.com/Justequal/VibeCalendar/compare/v1.1.15...v1.1.16
 [1.1.15]: https://github.com/Justequal/VibeCalendar/compare/v1.1.14...v1.1.15

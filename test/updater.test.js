@@ -17,7 +17,7 @@ const packageMetadata = require('../package.json');
 
 /**
  * 模拟加载 updater.js 模块，隔离 Electron 原生依赖
- * @param {{isPackaged?: boolean, dialogResponse?: number, currentVersion?: string, nextVersion?: string, checkForUpdatesImpl?: Function, downloadUpdateImpl?: Function}} options
+ * @param {{isPackaged?: boolean, dialogResponse?: number, currentVersion?: string, nextVersion?: string, checkForUpdatesImpl?: Function, downloadUpdateImpl?: Function, quitAndInstallImpl?: Function}} options
  */
 function loadUpdater({
   isPackaged = true,
@@ -25,7 +25,8 @@ function loadUpdater({
   currentVersion = '1.1.1',
   nextVersion = '1.1.1',
   checkForUpdatesImpl,
-  downloadUpdateImpl
+  downloadUpdateImpl,
+  quitAndInstallImpl
 } = {}) {
   const autoUpdater = new EventEmitter();
   let checkCount = 0;
@@ -47,6 +48,7 @@ function loadUpdater({
   autoUpdater.quitAndInstall = (...args) => {
     quitCount += 1;
     quitArguments = args;
+    return quitAndInstallImpl?.(...args);
   };
 
   const electron = {
@@ -112,8 +114,10 @@ async function withMockFetch(fetchImpl, callback) {
 test('安装版显式下载更新，并在完成后等待用户点击安装', async () => {
   const subject = loadUpdater();
   const statusEvents = [];
+  let windowHidden = false;
   const parentWindow = {
     isDestroyed: () => false,
+    hide: () => { windowHidden = true; },
     webContents: {
       isDestroyed: () => false,
       send: (channel, status) => statusEvents.push({ channel, status })
@@ -147,9 +151,9 @@ test('安装版显式下载更新，并在完成后等待用户点击安装', as
   assert.deepEqual(subject.module.getUpdateState(), {
     phase: 'installing', version: '1.1.1', percent: 100
   });
-  await new Promise((resolve) => setTimeout(resolve, 140));
   assert.equal(subject.getQuitCount(), 1);
   assert.deepEqual(subject.getQuitArguments(), [true, true]);
+  assert.equal(windowHidden, true);
   assert.deepEqual(statusEvents, [
     {
       channel: 'updates:status',
@@ -180,8 +184,29 @@ test('同一下载完成事件重复到达时仍只保留一次可安装状态',
 
   assert.equal(subject.dialogs.length, 0);
   assert.deepEqual(subject.module.installUpdate(), { status: 'installing', version: '1.1.2' });
-  await new Promise((resolve) => setTimeout(resolve, 140));
   assert.equal(subject.getQuitCount(), 1);
+});
+
+test('快速重启启动失败时保留窗口并恢复可重试状态', async () => {
+  const subject = loadUpdater({
+    quitAndInstallImpl: () => { throw new Error('installer unavailable'); }
+  });
+  let windowHidden = false;
+  const parentWindow = {
+    isDestroyed: () => false,
+    hide: () => { windowHidden = true; },
+    webContents: {
+      isDestroyed: () => false,
+      send: () => {}
+    }
+  };
+
+  await subject.module.checkForUpdates(parentWindow);
+  subject.autoUpdater.emit('update-downloaded', { version: '1.1.2' });
+
+  assert.deepEqual(subject.module.installUpdate(), { status: 'error', version: '1.1.2' });
+  assert.equal(windowHidden, false);
+  assert.equal(subject.module.getUpdateState().phase, 'error');
 });
 
 test('开发版自动检查不访问更新服务', async () => {

@@ -152,7 +152,11 @@
         updateState = { ...updateState, phase: 'installing' };
         renderUpdateState();
         try {
-          await root.appUpdates.installUpdate();
+          const result = await root.appUpdates.installUpdate();
+          if (result?.status !== 'installing') {
+            updateState = { ...updateState, phase: 'downloaded' };
+            renderUpdateState();
+          }
         } catch (error) {
           console.warn('安装更新失败：', error);
           updateState = { ...updateState, phase: 'downloaded' };
