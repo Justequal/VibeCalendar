@@ -30,8 +30,6 @@
     languageToggle: document.getElementById('language-toggle-btn'),
     version: document.getElementById('version-btn'),
     checkUpdate: document.getElementById('check-update-btn'),
-    updateStatus: document.getElementById('update-status'),
-    updateStatusText: document.getElementById('update-status-text'),
     releaseModal: document.getElementById('release-modal'),
     releaseTitle: document.getElementById('release-title'),
     releaseVersion: document.getElementById('release-version'),

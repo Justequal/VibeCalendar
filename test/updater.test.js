@@ -147,8 +147,9 @@ test('安装版显式下载更新，并在完成后等待用户点击安装', as
   assert.deepEqual(subject.module.getUpdateState(), {
     phase: 'installing', version: '1.1.1', percent: 100
   });
+  await new Promise((resolve) => setTimeout(resolve, 140));
   assert.equal(subject.getQuitCount(), 1);
-  assert.deepEqual(subject.getQuitArguments(), [false, true]);
+  assert.deepEqual(subject.getQuitArguments(), [true, true]);
   assert.deepEqual(statusEvents, [
     {
       channel: 'updates:status',
@@ -179,6 +180,7 @@ test('同一下载完成事件重复到达时仍只保留一次可安装状态',
 
   assert.equal(subject.dialogs.length, 0);
   assert.deepEqual(subject.module.installUpdate(), { status: 'installing', version: '1.1.2' });
+  await new Promise((resolve) => setTimeout(resolve, 140));
   assert.equal(subject.getQuitCount(), 1);
 });
 

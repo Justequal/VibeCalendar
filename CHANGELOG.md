@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.1.17] - 2026-09-03
+
+### 改进
+
+- 更新检查、下载进度、下载完成、安装中与失败状态统一直接显示在更新按钮内，不再遮挡日历
+- 点击“重启更新”会先展示安装状态，再静默安装已下载的增量包并自动重新打开新版应用
+
 ## [1.1.16] - 2026-09-03
 
 ### 改进
@@ -192,7 +199,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.16...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.17...HEAD
+[1.1.17]: https://github.com/Justequal/VibeCalendar/compare/v1.1.16...v1.1.17
 [1.1.16]: https://github.com/Justequal/VibeCalendar/compare/v1.1.15...v1.1.16
 [1.1.15]: https://github.com/Justequal/VibeCalendar/compare/v1.1.14...v1.1.15
 [1.1.14]: https://github.com/Justequal/VibeCalendar/compare/v1.1.13...v1.1.14

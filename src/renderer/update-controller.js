@@ -2,11 +2,11 @@
  * 更新功能的界面控制器。
  *
  * Electron 能力只通过 preload 暴露的 appUpdates 接口使用。此模块负责更新按钮、
- * 状态提示和当前版本说明弹层，不参与日历渲染，便于独立维护更新流程。
+ * 当前版本说明弹层，不参与日历渲染，便于独立维护更新流程。更新状态始终直接
+ * 呈现在“检查更新”按钮中，避免遮挡日历。
  */
 (function exposeUpdateController(root) {
   function createUpdateController({ elements, getText }) {
-    let statusTimer;
     let checking = false;
     let updateState = { phase: 'idle', version: '', percent: 0 };
 
@@ -21,7 +21,13 @@
           ? text.updating
           : updateState.phase === 'downloaded'
             ? text.updateNow.replace('{version}', updateState.version)
-            : downloading
+            : updateState.phase === 'found'
+              ? text.updateFound.replace('{version}', updateState.version)
+              : updateState.phase === 'up-to-date'
+                ? text.upToDate
+                : updateState.phase === 'error'
+                  ? text.updateCheckError
+                  : downloading
               ? updateState.phase === 'downloading'
                 ? text.downloadingUpdate.replace('{percent}', percent)
                 : text.preparingDownload
@@ -40,6 +46,7 @@
         updateState.phase === 'available'
       );
       elements.checkUpdate.classList.toggle('is-ready', updateState.phase === 'downloaded');
+      elements.checkUpdate.classList.toggle('is-error', updateState.phase === 'error');
 
       if (downloading) {
         elements.checkUpdate.setAttribute('role', 'progressbar');
@@ -62,56 +69,12 @@
       const text = getText();
       elements.version.setAttribute('aria-label', text.versionAnnouncement);
       elements.version.title = text.versionAnnouncement;
-      updateButton();
       elements.releaseTitle.textContent = text.releaseTitle;
       elements.releaseClose.setAttribute('aria-label', text.closeRelease);
       renderUpdateState();
     }
 
-    function showStatus(message, isError = false, autoHide = true) {
-      clearTimeout(statusTimer);
-      elements.updateStatusText.textContent = message;
-      elements.updateStatus.classList.toggle('is-error', isError);
-      elements.updateStatus.hidden = false;
-      if (autoHide) {
-        statusTimer = setTimeout(() => {
-          elements.updateStatus.hidden = true;
-          elements.updateStatus.setAttribute('aria-busy', 'false');
-          updateState = { phase: 'idle', version: '', percent: 0 };
-        }, 4500);
-      }
-    }
-
     function renderUpdateState() {
-      const text = getText();
-      const version = updateState.version || '';
-      const percent = Math.round(updateState.percent || 0);
-
-      if (updateState.phase === 'checking') {
-        showStatus(text.checkingUpdates, false, false);
-      } else if (updateState.phase === 'available') {
-        showStatus(text.updateAvailable.replace('{version}', version), false, false);
-      } else if (updateState.phase === 'found') {
-        showStatus(text.updateFound.replace('{version}', version));
-      } else if (updateState.phase === 'downloading') {
-        showStatus(
-          text.updateDownloading
-            .replace('{version}', version)
-            .replace('{percent}', percent),
-          false,
-          false
-        );
-      } else if (updateState.phase === 'downloaded') {
-        showStatus(text.updateDownloaded.replace('{version}', version));
-      } else if (updateState.phase === 'installing') {
-        showStatus(text.updating, false, false);
-      } else if (updateState.phase === 'up-to-date') {
-        showStatus(text.upToDate);
-      } else if (updateState.phase === 'error') {
-        showStatus(text.updateCheckError, true);
-      }
-      const busy = ['checking', 'available', 'downloading'].includes(updateState.phase);
-      elements.updateStatus.setAttribute('aria-busy', String(busy));
       updateButton();
     }
 

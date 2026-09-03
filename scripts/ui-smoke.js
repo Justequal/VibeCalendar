@@ -217,7 +217,6 @@ async function run() {
       return {
         modalHidden: document.getElementById('release-modal').hidden,
         focused: document.activeElement?.id,
-        status: document.getElementById('update-status-text').textContent,
         progress: document.getElementById('check-update-btn').style.getPropertyValue('--update-progress'),
         progressNow: document.getElementById('check-update-btn').getAttribute('aria-valuenow'),
         checkDisabled: document.getElementById('check-update-btn').disabled,
@@ -226,7 +225,6 @@ async function run() {
     `);
     assert.equal(updateAndClose.modalHidden, true);
     assert.equal(updateAndClose.focused, 'version-btn');
-    assert.equal(updateAndClose.status, 'Downloading v9.9.9: 42%');
     assert.equal(updateAndClose.progress, '42');
     assert.equal(updateAndClose.progressNow, '42');
     assert.equal(updateAndClose.checkDisabled, true);
@@ -238,11 +236,10 @@ async function run() {
       const before = { text: button.textContent, disabled: button.disabled };
       button.click();
       await new Promise((resolve) => setTimeout(resolve, 5));
-      return { before, after: button.textContent, status: document.getElementById('update-status-text').textContent };
+      return { before, after: button.textContent };
     `);
     assert.deepEqual(downloaded.before, { text: 'Restart to update V9.9.9', disabled: false });
     assert.equal(downloaded.after, 'Installing update…');
-    assert.equal(downloaded.status, 'Installing update…');
 
     const fastWheel = await invoke(window, `
       const before = document.querySelector('.day')?.dataset.date;

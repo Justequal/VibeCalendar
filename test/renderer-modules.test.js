@@ -73,8 +73,7 @@ function createUpdateSubject(appUpdates) {
     addEventListener: (type, listener) => documentListeners.set(type, listener)
   };
   const elements = Object.fromEntries([
-    'version', 'checkUpdate', 'updateStatus', 'updateStatusText',
-    'releaseModal', 'releaseTitle', 'releaseVersion',
+    'version', 'checkUpdate', 'releaseModal', 'releaseTitle', 'releaseVersion',
     'releaseNotes', 'releaseClose'
   ].map((name) => [name, createElement()]));
   elements.releaseModal.hidden = true;
@@ -128,8 +127,6 @@ test('更新界面控制器显示真实版本、公告并反馈手动检查结�
   assert.equal(elements.releaseNotes.textContent, '更快');
 
   await elements.checkUpdate.dispatch('click');
-  assert.equal(elements.updateStatusText.textContent, '发现 v2.4.0');
-  assert.equal(elements.updateStatus.getAttribute('aria-busy'), 'true');
   assert.equal(elements.checkUpdate.disabled, true);
   assert.equal(elements.checkUpdate.getAttribute('aria-label'), '准备下载…');
   assert.equal(elements.checkUpdate.classList.contains('is-indeterminate'), true);
@@ -159,7 +156,7 @@ test('开发版发现新版时给出结论并恢复检查按钮', async () => {
 
   await controller.initialize();
   await elements.checkUpdate.dispatch('click');
-  assert.equal(elements.updateStatusText.textContent, '发现新版本 v2.4.0');
+  assert.equal(elements.checkUpdate.textContent, '发现新版本 v2.4.0');
   assert.equal(elements.checkUpdate.disabled, false);
 });
 
@@ -175,8 +172,8 @@ test('公告和检查更新失败时显示可恢复错误状态', async () => {
   assert.equal(elements.releaseNotes.textContent, '公告失败');
 
   await elements.checkUpdate.dispatch('click');
-  assert.equal(elements.updateStatusText.textContent, '失败');
-  assert.equal(elements.updateStatus.classList.contains('is-error'), true);
+  assert.equal(elements.checkUpdate.textContent, '失败');
+  assert.equal(elements.checkUpdate.classList.contains('is-error'), true);
   assert.equal(elements.checkUpdate.disabled, false);
 });
 
@@ -194,14 +191,13 @@ test('手动检查立即显示进度，异常返回也不会表现为无反应',
   await controller.initialize();
   const checkAction = elements.checkUpdate.dispatch('click');
   await Promise.resolve();
-  assert.equal(elements.updateStatusText.textContent, '正在检查');
-  assert.equal(elements.updateStatus.hidden, false);
+  assert.equal(elements.checkUpdate.textContent, '正在检查');
   assert.equal(elements.checkUpdate.disabled, true);
 
   finishCheck({ status: 'unexpected' });
   await checkAction;
-  assert.equal(elements.updateStatusText.textContent, '失败');
-  assert.equal(elements.updateStatus.classList.contains('is-error'), true);
+  assert.equal(elements.checkUpdate.textContent, '失败');
+  assert.equal(elements.checkUpdate.classList.contains('is-error'), true);
   assert.equal(elements.checkUpdate.disabled, false);
 });
 
@@ -225,26 +221,23 @@ test('更新下载事件驱动按钮背景进度、重启更新和失败状态',
   assert.equal(elements.checkUpdate.getAttribute('role'), 'progressbar');
 
   updateListener({ phase: 'downloading', version: '2.4.0', percent: 42.4 });
-  assert.equal(elements.updateStatusText.textContent, '正在下载 v2.4.0：42%');
   assert.equal(elements.checkUpdate.textContent, '正在下载 42%');
   assert.equal(elements.checkUpdate.style.getPropertyValue('--update-progress'), 42);
   assert.equal(elements.checkUpdate.getAttribute('aria-valuenow'), '42');
 
   updateListener({ phase: 'downloaded', version: '2.4.0' });
-  assert.equal(elements.updateStatusText.textContent, 'v2.4.0 下载完成');
   assert.equal(elements.checkUpdate.style.getPropertyValue('--update-progress'), 100);
   assert.equal(elements.checkUpdate.disabled, false);
   assert.equal(elements.checkUpdate.getAttribute('aria-label'), '重启更新 V2.4.0');
   assert.equal(elements.checkUpdate.classList.contains('is-ready'), true);
-  assert.equal(elements.updateStatus.getAttribute('aria-busy'), 'false');
 
   await elements.checkUpdate.dispatch('click');
-  assert.equal(elements.updateStatusText.textContent, '正在安装更新');
+  assert.equal(elements.checkUpdate.textContent, '正在安装更新');
   assert.equal(elements.checkUpdate.disabled, true);
 
   updateListener({ phase: 'error' });
-  assert.equal(elements.updateStatusText.textContent, '失败');
-  assert.equal(elements.updateStatus.classList.contains('is-error'), true);
+  assert.equal(elements.checkUpdate.textContent, '失败');
+  assert.equal(elements.checkUpdate.classList.contains('is-error'), true);
 });
 
 test('窗口加载后恢复主进程已经下载完成的更新状态', async () => {

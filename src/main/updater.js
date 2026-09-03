@@ -24,6 +24,7 @@ let requestedUpdateVersion = null;
 let updateParentWindow = null;
 let downloadedUpdateVersion = null;
 let availableUpdateVersion = null;
+let installScheduled = false;
 let lastUpdateStatus = Object.freeze({ phase: 'idle' });
 // Release 请求在短时间内复用，减少重复点击对 GitHub API 的压力
 let latestReleaseCache = null;
@@ -248,16 +249,35 @@ function initializeAutoUpdater(parentWindow) {
 
   autoUpdater.on('error', (error) => {
     requestedUpdateVersion = null;
+    installScheduled = false;
     console.error('自动更新检查失败：', error);
     sendUpdateStatus({ phase: 'error' });
   });
 }
 
-/** 在渲染层明确点击“重启更新 vX”后安装已下载的差分更新包。 */
+/**
+ * 在渲染层明确点击“重启更新 vX”后安装已下载的差分更新包。
+ *
+ * 先留出一个短帧让渲染进程画出“正在安装更新”，再静默退出并重新启动新版，
+ * 防止点击后窗口立刻消失造成没有响应的错觉。重复点击只会安排一次安装。
+ */
 function installUpdate() {
   if (!downloadedUpdateVersion) return { status: 'not-ready' };
+  if (installScheduled) return { status: 'installing', version: downloadedUpdateVersion };
+
+  installScheduled = true;
   sendUpdateStatus({ phase: 'installing', version: downloadedUpdateVersion, percent: 100 });
-  autoUpdater.quitAndInstall(false, true);
+  const installTimer = setTimeout(() => {
+    try {
+      // 静默安装已下载的增量包；安装完成后自动拉起新版应用。
+      autoUpdater.quitAndInstall(true, true);
+    } catch (error) {
+      installScheduled = false;
+      console.error('安装已下载的更新失败：', error);
+      sendUpdateStatus({ phase: 'error' });
+    }
+  }, 120);
+  installTimer.unref?.();
   return { status: 'installing', version: downloadedUpdateVersion };
 }
 
