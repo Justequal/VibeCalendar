@@ -19,9 +19,12 @@ let updaterInitialized = false;
 let updateCheckPromise = null;
 // 正在进行的更新下载 Promise，避免启动检查与手动检查重复下载
 let updateDownloadPromise = null;
+let requestedUpdateVersion = null;
 // 主窗口引用，用于模态弹窗挂载
 let updateParentWindow = null;
 let downloadedUpdateVersion = null;
+let availableUpdateVersion = null;
+let lastUpdateStatus = Object.freeze({ phase: 'idle' });
 // Release 请求在短时间内复用，减少重复点击对 GitHub API 的压力
 let latestReleaseCache = null;
 let latestReleasePromise = null;
@@ -170,6 +173,7 @@ function getCurrentRelease() {
 }
 
 function sendUpdateStatus(status) {
+  lastUpdateStatus = Object.freeze({ ...status });
   const webContents = updateParentWindow?.webContents;
   if (
     !updateParentWindow
@@ -178,7 +182,12 @@ function sendUpdateStatus(status) {
     || webContents.isDestroyed?.()
   ) return;
 
-  webContents.send(UPDATE_STATUS_CHANNEL, Object.freeze(status));
+  webContents.send(UPDATE_STATUS_CHANNEL, lastUpdateStatus);
+}
+
+/** 返回最近的更新状态，防止窗口加载期间错过主进程事件。 */
+function getUpdateState() {
+  return lastUpdateStatus;
 }
 
 /**
@@ -197,8 +206,14 @@ function initializeAutoUpdater(parentWindow) {
 
   autoUpdater.on('update-available', (info) => {
     const version = String(info?.version || '').trim();
+    availableUpdateVersion = version || availableUpdateVersion;
     console.info(`发现 VibeCalendar v${version || '新版'}，正在后台下载。`);
     sendUpdateStatus({ phase: 'available', version });
+    // 以 update-available 事件作为最早的可靠下载起点；startAutoUpdaterCheck
+    // 还会做一次兜底调用，二者由 startUpdateDownload 自动合并。
+    void startUpdateDownload().catch((error) => {
+      console.error('下载新版本失败：', error);
+    });
   });
 
   autoUpdater.on('download-progress', (progress) => {
@@ -208,6 +223,7 @@ function initializeAutoUpdater(parentWindow) {
       : 0;
     sendUpdateStatus({
       phase: 'downloading',
+      version: availableUpdateVersion || '',
       percent,
       transferred: Number.isFinite(Number(progress?.transferred)) ? Number(progress.transferred) : 0,
       total: Number.isFinite(Number(progress?.total)) ? Number(progress.total) : 0
@@ -217,18 +233,21 @@ function initializeAutoUpdater(parentWindow) {
   autoUpdater.on('update-downloaded', async (info) => {
     const downloadedVersion = String(info?.version || '').trim();
     downloadedUpdateVersion = downloadedVersion || downloadedUpdateVersion || 'unknown-version';
-    sendUpdateStatus({ phase: 'downloaded', version: downloadedVersion, percent: 100 });
+    availableUpdateVersion = downloadedUpdateVersion;
+    sendUpdateStatus({ phase: 'downloaded', version: downloadedUpdateVersion, percent: 100 });
   });
 
   autoUpdater.on('error', (error) => {
+    requestedUpdateVersion = null;
     console.error('自动更新检查失败：', error);
     sendUpdateStatus({ phase: 'error' });
   });
 }
 
-/** 在渲染层明确点击“更新 vX”后安装已下载的增量包。 */
+/** 在渲染层明确点击“重启更新 vX”后安装已下载的差分更新包。 */
 function installUpdate() {
   if (!downloadedUpdateVersion) return { status: 'not-ready' };
+  sendUpdateStatus({ phase: 'installing', version: downloadedUpdateVersion, percent: 100 });
   autoUpdater.quitAndInstall(false, true);
   return { status: 'installing', version: downloadedUpdateVersion };
 }
@@ -306,10 +325,16 @@ async function getLatestRelease({ forceRefresh = false } = {}) {
 
 /** 显式启动并复用下载任务，不依赖 electron-updater 的隐式自动下载。 */
 function startUpdateDownload() {
+  const targetVersion = availableUpdateVersion || '';
+  if (targetVersion && requestedUpdateVersion === targetVersion) {
+    return updateDownloadPromise || Promise.resolve();
+  }
   if (!updateDownloadPromise) {
+    requestedUpdateVersion = targetVersion;
     updateDownloadPromise = Promise.resolve()
       .then(() => autoUpdater.downloadUpdate())
       .catch((error) => {
+        requestedUpdateVersion = null;
         sendUpdateStatus({ phase: 'error' });
         throw error;
       })
@@ -329,6 +354,8 @@ function startAutoUpdaterCheck(parentWindow) {
       .then((result) => {
         const latestVersion = result?.updateInfo?.version;
         if (latestVersion && compareVersions(latestVersion, app.getVersion()) > 0) {
+          availableUpdateVersion = latestVersion;
+          sendUpdateStatus({ phase: 'available', version: latestVersion });
           void startUpdateDownload().catch((error) => {
             console.error('下载新版本失败：', error);
           });
@@ -351,9 +378,35 @@ function startAutoUpdaterCheck(parentWindow) {
 async function checkForUpdates(parentWindow, { manual = false } = {}) {
   const currentVersion = app.getVersion();
 
-  // 用户主动检查时，版本结论只取决于最新正式 Release。这样即使下载器元数据
-  // 尚未同步，也不会把“暂时无法下载”错误表述成“当前版本不能更新”。
+  // 安装版直接使用 electron-updater 的 latest.yml：检查到新版后立刻进入差分下载，
+  // 避免先查 GitHub API、再启动下载所造成的状态分裂与接口限流问题。
   if (manual) {
+    if (app.isPackaged && isUpdateConfigured()) {
+      try {
+        const result = await startAutoUpdaterCheck(parentWindow);
+        const latestVersion = String(result?.updateInfo?.version || '').trim();
+        if (!latestVersion || compareVersions(latestVersion, currentVersion) <= 0) {
+          return {
+            status: 'up-to-date',
+            currentVersion,
+            latestVersion: latestVersion || currentVersion,
+            version: latestVersion || currentVersion
+          };
+        }
+        return {
+          status: 'available',
+          currentVersion,
+          latestVersion,
+          version: latestVersion,
+          downloadStarted: true
+        };
+      } catch (error) {
+        console.error('检查并下载更新失败：', error);
+        return { status: 'error', currentVersion, message: getErrorMessage(error) };
+      }
+    }
+
+    // 开发预览无法安装更新，仅查询 Release 并展示版本结论。
     try {
       const release = await getLatestRelease({ forceRefresh: true });
       if (!release.isNewer) {
@@ -365,21 +418,12 @@ async function checkForUpdates(parentWindow, { manual = false } = {}) {
         };
       }
 
-      let downloadStarted = false;
-      if (app.isPackaged && isUpdateConfigured()) {
-        // 版本结论立即返回给界面；下载器独立在后台继续，不能阻塞按钮反馈。
-        downloadStarted = true;
-        void startAutoUpdaterCheck(parentWindow).catch((error) => {
-          console.error('已发现新版本，但暂时无法启动后台下载：', error);
-        });
-      }
-
       return {
         status: 'available',
         currentVersion,
         latestVersion: release.version,
         version: release.version,
-        downloadStarted
+        downloadStarted: false
       };
     } catch (error) {
       console.error('检查最新 Release 失败：', error);
@@ -428,6 +472,7 @@ module.exports = {
   checkForUpdates,
   compareVersions,
   getCurrentRelease,
+  getUpdateState,
   getLatestRelease,
   isUpdateConfigured,
   installUpdate

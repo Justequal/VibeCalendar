@@ -25,6 +25,7 @@ async function run() {
     title: `VibeCalendar v${currentVersion}`,
     notes: '**修复**\n\n- 手动检查更新会立即显示结果'
   }));
+  ipcMain.handle('updates:get-state', () => ({ phase: 'idle' }));
   ipcMain.handle('updates:check', (event) => {
     setTimeout(() => {
       if (!event.sender.isDestroyed()) {
@@ -217,9 +218,8 @@ async function run() {
         modalHidden: document.getElementById('release-modal').hidden,
         focused: document.activeElement?.id,
         status: document.getElementById('update-status-text').textContent,
-        progress: document.getElementById('update-progress-value').textContent,
-        progressHidden: document.getElementById('update-progress-ring').hidden,
-        progressNow: document.getElementById('update-progress-ring').getAttribute('aria-valuenow'),
+        progress: document.getElementById('check-update-btn').style.getPropertyValue('--update-progress'),
+        progressNow: document.getElementById('check-update-btn').getAttribute('aria-valuenow'),
         checkDisabled: document.getElementById('check-update-btn').disabled,
         checkText: document.getElementById('check-update-btn').textContent
       };
@@ -227,11 +227,10 @@ async function run() {
     assert.equal(updateAndClose.modalHidden, true);
     assert.equal(updateAndClose.focused, 'version-btn');
     assert.equal(updateAndClose.status, 'Downloading v9.9.9: 42%');
-    assert.equal(updateAndClose.progress, '42%');
-    assert.equal(updateAndClose.progressHidden, false);
+    assert.equal(updateAndClose.progress, '42');
     assert.equal(updateAndClose.progressNow, '42');
     assert.equal(updateAndClose.checkDisabled, true);
-    assert.equal(updateAndClose.checkText, 'Downloading');
+    assert.equal(updateAndClose.checkText, 'Downloading 42%');
 
     const downloaded = await invoke(window, `
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -241,7 +240,7 @@ async function run() {
       await new Promise((resolve) => setTimeout(resolve, 5));
       return { before, after: button.textContent, status: document.getElementById('update-status-text').textContent };
     `);
-    assert.deepEqual(downloaded.before, { text: 'Update to V9.9.9', disabled: false });
+    assert.deepEqual(downloaded.before, { text: 'Restart to update V9.9.9', disabled: false });
     assert.equal(downloaded.after, 'Installing update…');
     assert.equal(downloaded.status, 'Installing update…');
 

@@ -10,6 +10,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const IPC_CHANNELS = Object.freeze({
   getVersion: 'app:get-version',
   getCurrentRelease: 'updates:get-current-release',
+  getUpdateState: 'updates:get-state',
   checkForUpdates: 'updates:check',
   installUpdate: 'updates:install',
   updateStatus: 'updates:status'
@@ -28,6 +29,9 @@ contextBridge.exposeInMainWorld('appUpdates', Object.freeze({
    * @returns {Promise<{version: string, title: string, notes: string, publishedAt: string|null, url: string|null, isNewer: boolean}>}
    */
   getCurrentRelease: () => ipcRenderer.invoke(IPC_CHANNELS.getCurrentRelease),
+
+  /** 获取窗口加载前可能已经产生的最近更新状态。 */
+  getUpdateState: () => ipcRenderer.invoke(IPC_CHANNELS.getUpdateState),
 
   /**
    * 触发更新检查（手动触发）

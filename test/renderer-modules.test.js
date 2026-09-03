@@ -50,13 +50,13 @@ const UPDATE_TEXT = Object.freeze({
   versionAnnouncement: '查看公告',
   checkUpdates: '检查更新',
   checkingUpdates: '正在检查',
-  downloadingUpdate: '正在下载',
+  preparingDownload: '准备下载…',
+  downloadingUpdate: '正在下载 {percent}%',
   updateFound: '发现新版本 v{version}',
   updateAvailable: '发现 v{version}',
   updateDownloading: '正在下载 v{version}：{percent}%',
   updateDownloaded: 'v{version} 下载完成',
-  updateProgressLabel: '更新下载进度',
-  updateNow: '更新 V{version} 版本',
+  updateNow: '重启更新 V{version}',
   updating: '正在安装更新',
   upToDate: '已是最新',
   updateCheckError: '失败',
@@ -73,8 +73,8 @@ function createUpdateSubject(appUpdates) {
     addEventListener: (type, listener) => documentListeners.set(type, listener)
   };
   const elements = Object.fromEntries([
-    'version', 'checkUpdate', 'updateStatus', 'updateStatusText', 'updateProgress',
-    'updateProgressValue', 'releaseModal', 'releaseTitle', 'releaseVersion',
+    'version', 'checkUpdate', 'updateStatus', 'updateStatusText',
+    'releaseModal', 'releaseTitle', 'releaseVersion',
     'releaseNotes', 'releaseClose'
   ].map((name) => [name, createElement()]));
   elements.releaseModal.hidden = true;
@@ -129,11 +129,10 @@ test('更新界面控制器显示真实版本、公告并反馈手动检查结�
 
   await elements.checkUpdate.dispatch('click');
   assert.equal(elements.updateStatusText.textContent, '发现 v2.4.0');
-  assert.equal(elements.updateProgress.hidden, false);
-  assert.equal(elements.updateProgress.classList.contains('is-indeterminate'), true);
   assert.equal(elements.updateStatus.getAttribute('aria-busy'), 'true');
   assert.equal(elements.checkUpdate.disabled, true);
-  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '正在下载');
+  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '准备下载…');
+  assert.equal(elements.checkUpdate.classList.contains('is-indeterminate'), true);
 
   documentListeners.get('keydown')({ key: 'Escape' });
   assert.equal(elements.releaseModal.hidden, true);
@@ -161,7 +160,6 @@ test('开发版发现新版时给出结论并恢复检查按钮', async () => {
   await controller.initialize();
   await elements.checkUpdate.dispatch('click');
   assert.equal(elements.updateStatusText.textContent, '发现新版本 v2.4.0');
-  assert.equal(elements.updateProgress.hidden, true);
   assert.equal(elements.checkUpdate.disabled, false);
 });
 
@@ -207,7 +205,7 @@ test('手动检查立即显示进度，异常返回也不会表现为无反应',
   assert.equal(elements.checkUpdate.disabled, false);
 });
 
-test('更新下载事件驱动环形进度、完成和失败状态', async () => {
+test('更新下载事件驱动按钮背景进度、重启更新和失败状态', async () => {
   let updateListener;
   const { controller, elements } = createUpdateSubject({
     getVersion: async () => '2.3.4',
@@ -223,19 +221,21 @@ test('更新下载事件驱动环形进度、完成和失败状态', async () =>
   await controller.initialize();
   updateListener({ phase: 'available', version: '2.4.0' });
   assert.equal(elements.checkUpdate.disabled, true);
-  assert.equal(elements.updateProgress.classList.contains('is-indeterminate'), true);
+  assert.equal(elements.checkUpdate.classList.contains('is-indeterminate'), true);
+  assert.equal(elements.checkUpdate.getAttribute('role'), 'progressbar');
 
-  updateListener({ phase: 'downloading', percent: 42.4 });
+  updateListener({ phase: 'downloading', version: '2.4.0', percent: 42.4 });
   assert.equal(elements.updateStatusText.textContent, '正在下载 v2.4.0：42%');
-  assert.equal(elements.updateProgressValue.textContent, '42%');
-  assert.equal(elements.updateProgress.style.getPropertyValue('--progress'), 42);
-  assert.equal(elements.updateProgress.getAttribute('aria-valuenow'), 42);
+  assert.equal(elements.checkUpdate.textContent, '正在下载 42%');
+  assert.equal(elements.checkUpdate.style.getPropertyValue('--update-progress'), 42);
+  assert.equal(elements.checkUpdate.getAttribute('aria-valuenow'), '42');
 
   updateListener({ phase: 'downloaded', version: '2.4.0' });
   assert.equal(elements.updateStatusText.textContent, 'v2.4.0 下载完成');
-  assert.equal(elements.updateProgressValue.textContent, '100%');
+  assert.equal(elements.checkUpdate.style.getPropertyValue('--update-progress'), 100);
   assert.equal(elements.checkUpdate.disabled, false);
-  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '更新 V2.4.0 版本');
+  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '重启更新 V2.4.0');
+  assert.equal(elements.checkUpdate.classList.contains('is-ready'), true);
   assert.equal(elements.updateStatus.getAttribute('aria-busy'), 'false');
 
   await elements.checkUpdate.dispatch('click');
@@ -244,6 +244,21 @@ test('更新下载事件驱动环形进度、完成和失败状态', async () =>
 
   updateListener({ phase: 'error' });
   assert.equal(elements.updateStatusText.textContent, '失败');
-  assert.equal(elements.updateProgress.hidden, true);
   assert.equal(elements.updateStatus.classList.contains('is-error'), true);
+});
+
+test('窗口加载后恢复主进程已经下载完成的更新状态', async () => {
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    getUpdateState: async () => ({ phase: 'downloaded', version: '2.4.0', percent: 100 }),
+    getCurrentRelease: async () => ({ version: '2.3.4', notes: '说明' }),
+    checkForUpdates: async () => ({ status: 'up-to-date' }),
+    installUpdate: async () => ({ status: 'installing' }),
+    onUpdateStatus: () => () => {}
+  });
+
+  await controller.initialize();
+  assert.equal(elements.checkUpdate.textContent, '重启更新 V2.4.0');
+  assert.equal(elements.checkUpdate.disabled, false);
+  assert.equal(elements.checkUpdate.classList.contains('is-ready'), true);
 });

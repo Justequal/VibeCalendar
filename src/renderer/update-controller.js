@@ -14,6 +14,7 @@
       const text = getText();
       const downloading = ['available', 'downloading'].includes(updateState.phase);
       const installing = updateState.phase === 'installing';
+      const percent = Math.round(Math.min(100, Math.max(0, updateState.percent || 0)));
       const buttonLabel = checking
         ? text.checkingUpdates
         : installing
@@ -21,22 +22,46 @@
           : updateState.phase === 'downloaded'
             ? text.updateNow.replace('{version}', updateState.version)
             : downloading
-              ? text.downloadingUpdate
+              ? updateState.phase === 'downloading'
+                ? text.downloadingUpdate.replace('{percent}', percent)
+                : text.preparingDownload
               : text.checkUpdates;
       elements.checkUpdate.disabled = checking || downloading || installing;
       elements.checkUpdate.textContent = buttonLabel;
       elements.checkUpdate.setAttribute('aria-label', buttonLabel);
+      elements.checkUpdate.setAttribute('aria-busy', String(checking || downloading || installing));
       elements.checkUpdate.style.setProperty(
         '--update-progress',
-        downloading || updateState.phase === 'downloaded' ? Math.round(updateState.percent || 0) : 0
+        downloading || updateState.phase === 'downloaded' ? percent : 0
       );
+      elements.checkUpdate.classList.toggle('is-downloading', downloading);
+      elements.checkUpdate.classList.toggle(
+        'is-indeterminate',
+        updateState.phase === 'available'
+      );
+      elements.checkUpdate.classList.toggle('is-ready', updateState.phase === 'downloaded');
+
+      if (downloading) {
+        elements.checkUpdate.setAttribute('role', 'progressbar');
+        elements.checkUpdate.setAttribute('aria-valuemin', '0');
+        elements.checkUpdate.setAttribute('aria-valuemax', '100');
+        if (updateState.phase === 'downloading') {
+          elements.checkUpdate.setAttribute('aria-valuenow', String(percent));
+        } else {
+          elements.checkUpdate.removeAttribute('aria-valuenow');
+        }
+      } else {
+        elements.checkUpdate.removeAttribute('role');
+        elements.checkUpdate.removeAttribute('aria-valuemin');
+        elements.checkUpdate.removeAttribute('aria-valuemax');
+        elements.checkUpdate.removeAttribute('aria-valuenow');
+      }
     }
 
     function syncLanguage() {
       const text = getText();
       elements.version.setAttribute('aria-label', text.versionAnnouncement);
       elements.version.title = text.versionAnnouncement;
-      elements.updateProgress.setAttribute('aria-label', text.updateProgressLabel);
       updateButton();
       elements.releaseTitle.textContent = text.releaseTitle;
       elements.releaseClose.setAttribute('aria-label', text.closeRelease);
@@ -57,44 +82,18 @@
       }
     }
 
-    function showProgress(percent) {
-      elements.updateProgress.hidden = false;
-      if (Number.isFinite(percent)) {
-        const rounded = Math.round(Math.min(100, Math.max(0, percent)));
-        elements.updateProgress.classList.toggle('is-indeterminate', false);
-        elements.updateProgress.style.setProperty('--progress', rounded);
-        elements.updateProgress.setAttribute('aria-valuenow', rounded);
-        elements.updateProgressValue.textContent = `${rounded}%`;
-        return;
-      }
-
-      elements.updateProgress.classList.toggle('is-indeterminate', true);
-      elements.updateProgress.removeAttribute('aria-valuenow');
-      elements.updateProgressValue.textContent = '…';
-    }
-
-    function hideProgress() {
-      elements.updateProgress.hidden = true;
-      elements.updateProgress.classList.toggle('is-indeterminate', false);
-      elements.updateProgress.removeAttribute('aria-valuenow');
-    }
-
     function renderUpdateState() {
       const text = getText();
       const version = updateState.version || '';
       const percent = Math.round(updateState.percent || 0);
 
       if (updateState.phase === 'checking') {
-        showProgress();
         showStatus(text.checkingUpdates, false, false);
       } else if (updateState.phase === 'available') {
-        showProgress();
         showStatus(text.updateAvailable.replace('{version}', version), false, false);
       } else if (updateState.phase === 'found') {
-        hideProgress();
         showStatus(text.updateFound.replace('{version}', version));
       } else if (updateState.phase === 'downloading') {
-        showProgress(percent);
         showStatus(
           text.updateDownloading
             .replace('{version}', version)
@@ -103,19 +102,13 @@
           false
         );
       } else if (updateState.phase === 'downloaded') {
-        showProgress(100);
         showStatus(text.updateDownloaded.replace('{version}', version));
       } else if (updateState.phase === 'installing') {
-        showProgress(100);
         showStatus(text.updating, false, false);
       } else if (updateState.phase === 'up-to-date') {
-        hideProgress();
         showStatus(text.upToDate);
       } else if (updateState.phase === 'error') {
-        hideProgress();
         showStatus(text.updateCheckError, true);
-      } else {
-        hideProgress();
       }
       const busy = ['checking', 'available', 'downloading'].includes(updateState.phase);
       elements.updateStatus.setAttribute('aria-busy', String(busy));
@@ -270,6 +263,10 @@
       root.appUpdates.onUpdateStatus?.(handleUpdateStatus);
       try {
         elements.version.textContent = `v${await root.appUpdates.getVersion()}`;
+        const initialUpdateState = await root.appUpdates.getUpdateState?.();
+        if (initialUpdateState?.phase && initialUpdateState.phase !== 'idle') {
+          handleUpdateStatus(initialUpdateState);
+        }
       } catch (error) {
         console.warn('读取应用版本失败：', error);
       }

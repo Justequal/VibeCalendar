@@ -14,14 +14,15 @@ const path = require('node:path');
 
 /**
  * 模拟加载 updater.js 模块，隔离 Electron 原生依赖
- * @param {{isPackaged?: boolean, dialogResponse?: number, currentVersion?: string, nextVersion?: string, checkForUpdatesImpl?: Function}} options
+ * @param {{isPackaged?: boolean, dialogResponse?: number, currentVersion?: string, nextVersion?: string, checkForUpdatesImpl?: Function, downloadUpdateImpl?: Function}} options
  */
 function loadUpdater({
   isPackaged = true,
   dialogResponse = 0,
   currentVersion = '1.1.1',
   nextVersion = '1.1.1',
-  checkForUpdatesImpl
+  checkForUpdatesImpl,
+  downloadUpdateImpl
 } = {}) {
   const autoUpdater = new EventEmitter();
   let checkCount = 0;
@@ -37,6 +38,7 @@ function loadUpdater({
   };
   autoUpdater.downloadUpdate = async () => {
     downloadCount += 1;
+    if (downloadUpdateImpl) return downloadUpdateImpl();
     return ['downloaded-update.exe'];
   };
   autoUpdater.quitAndInstall = (...args) => {
@@ -136,8 +138,12 @@ test('安装版显式下载更新，并在完成后等待用户点击安装', as
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(subject.dialogs.length, 0);
+  assert.equal(subject.getDownloadCount(), 1);
   assert.equal(subject.getQuitCount(), 0);
   assert.deepEqual(subject.module.installUpdate(), { status: 'installing', version: '1.1.1' });
+  assert.deepEqual(subject.module.getUpdateState(), {
+    phase: 'installing', version: '1.1.1', percent: 100
+  });
   assert.equal(subject.getQuitCount(), 1);
   assert.deepEqual(subject.getQuitArguments(), [false, true]);
   assert.deepEqual(statusEvents, [
@@ -147,11 +153,15 @@ test('安装版显式下载更新，并在完成后等待用户点击安装', as
     },
     {
       channel: 'updates:status',
-      status: { phase: 'downloading', percent: 42.4, transferred: 424, total: 1000 }
+      status: { phase: 'downloading', version: '1.1.1', percent: 42.4, transferred: 424, total: 1000 }
     },
     {
       channel: 'updates:status',
       status: { phase: 'downloaded', version: '1.1.1', percent: 100 }
+    },
+    {
+      channel: 'updates:status',
+      status: { phase: 'installing', version: '1.1.1', percent: 100 }
     }
   ]);
 });
@@ -232,7 +242,7 @@ test('安装版检查到新版本时返回 available 状态及版本号', async 
   });
 });
 
-test('下载器元数据缺失时仍立即按正式 Release 报告新版本', async () => {
+test('安装版下载器元数据缺失时不会虚报已经开始下载', async () => {
   const subject = loadUpdater({
     currentVersion: '1.1.0',
     checkForUpdatesImpl: () => null
@@ -240,9 +250,8 @@ test('下载器元数据缺失时仍立即按正式 Release 报告新版本', as
 
   await withMockFetch(async () => createReleaseResponse('1.1.1'), async () => {
     const result = await subject.module.checkForUpdates(undefined, { manual: true });
-    assert.equal(result.status, 'available');
-    assert.equal(result.latestVersion, '1.1.1');
-    assert.equal(result.downloadStarted, true);
+    assert.equal(result.status, 'up-to-date');
+    assert.equal(result.downloadStarted, undefined);
   });
 });
 
@@ -250,7 +259,8 @@ test('手动检查不等待后台下载器完成即可返回新版本结果', as
   const neverFinishes = new Promise(() => {});
   const subject = loadUpdater({
     currentVersion: '1.1.0',
-    checkForUpdatesImpl: () => neverFinishes
+    nextVersion: '1.1.1',
+    downloadUpdateImpl: () => neverFinishes
   });
 
   await withMockFetch(async () => createReleaseResponse('1.1.1'), async () => {
@@ -270,14 +280,15 @@ test('版本号说明读取当前安装版本的内置维护记录', () => {
   assert.doesNotMatch(release.notes, /compare\/v1\.1\.3/);
 });
 
-test('手动检查已是最新版时不启动下载器', async () => {
+test('手动检查已是最新版时只检查清单而不启动下载', async () => {
   const subject = loadUpdater({ currentVersion: '1.1.1', nextVersion: '1.1.1' });
 
   await withMockFetch(async () => createReleaseResponse('1.1.1'), async () => {
     const result = await subject.module.checkForUpdates(undefined, { manual: true });
     assert.equal(result.status, 'up-to-date');
     assert.equal(result.latestVersion, '1.1.1');
-    assert.equal(subject.getCheckCount(), 0);
+    assert.equal(subject.getCheckCount(), 1);
+    assert.equal(subject.getDownloadCount(), 0);
   });
 });
 
