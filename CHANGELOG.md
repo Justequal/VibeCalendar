@@ -9,6 +9,13 @@
 
 ## [Unreleased]
 
+## [1.1.15] - 2026-09-03
+
+### 修复
+
+- 修复正式安装包内 `package.json` 不含构建发布字段时只能检查版本、无法开始下载的问题
+- 改用安装包自带的 `resources/app-update.yml` 识别自动更新配置
+
 ## [1.1.14] - 2026-09-03
 
 ### 改进
@@ -179,7 +186,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.14...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.15...HEAD
+[1.1.15]: https://github.com/Justequal/VibeCalendar/compare/v1.1.14...v1.1.15
 [1.1.14]: https://github.com/Justequal/VibeCalendar/compare/v1.1.13...v1.1.14
 [1.1.13]: https://github.com/Justequal/VibeCalendar/compare/v1.1.12...v1.1.13
 [1.1.12]: https://github.com/Justequal/VibeCalendar/compare/v1.1.11...v1.1.12

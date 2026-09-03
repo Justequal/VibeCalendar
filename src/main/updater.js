@@ -52,13 +52,22 @@ function getPublishConfigs() {
  * @returns {boolean}
  */
 function isUpdateConfigured() {
-  return getPublishConfigs().some((config) => (
+  if (getPublishConfigs().some((config) => (
     config === 'github'
     || (
       config?.provider === 'github'
       && config.owner !== 'YourUsername'
     )
-  ));
+  ))) {
+    return true;
+  }
+
+  // electron-builder 会从正式包内的 package.json 移除 build 字段，但会把发布
+  // 配置写入 resources/app-update.yml；运行时必须以这个文件判断是否可更新。
+  const updateConfigPath = app.isPackaged && process.resourcesPath
+    ? path.join(process.resourcesPath, 'app-update.yml')
+    : null;
+  return Boolean(updateConfigPath && fs.existsSync(updateConfigPath));
 }
 
 /**

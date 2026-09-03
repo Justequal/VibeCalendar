@@ -9,8 +9,11 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
+const fs = require('node:fs');
 const Module = require('node:module');
+const os = require('node:os');
 const path = require('node:path');
+const packageMetadata = require('../package.json');
 
 /**
  * 模拟加载 updater.js 模块，隔离 Electron 原生依赖
@@ -184,6 +187,28 @@ test('开发版自动检查不访问更新服务', async () => {
   const result = await subject.module.checkForUpdates();
   assert.equal(subject.getCheckCount(), 0);
   assert.equal(result.status, 'development');
+});
+
+test('正式包缺少 build 字段时仍通过 resources/app-update.yml 启用更新', () => {
+  const subject = loadUpdater();
+  const previousPublish = packageMetadata.build.publish;
+  const previousResourcesPath = Object.getOwnPropertyDescriptor(process, 'resourcesPath');
+  const resourcesPath = fs.mkdtempSync(path.join(os.tmpdir(), 'vibe-calendar-update-'));
+
+  try {
+    packageMetadata.build.publish = undefined;
+    fs.writeFileSync(path.join(resourcesPath, 'app-update.yml'), 'provider: github\n');
+    Object.defineProperty(process, 'resourcesPath', {
+      configurable: true,
+      value: resourcesPath
+    });
+    assert.equal(subject.module.isUpdateConfigured(), true);
+  } finally {
+    packageMetadata.build.publish = previousPublish;
+    if (previousResourcesPath) Object.defineProperty(process, 'resourcesPath', previousResourcesPath);
+    else delete process.resourcesPath;
+    fs.rmSync(resourcesPath, { recursive: true, force: true });
+  }
 });
 
 test('安装版允许用户重复手动检查更新', async () => {
