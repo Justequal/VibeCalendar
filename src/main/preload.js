@@ -3,6 +3,9 @@
  *
  * 运行在隔离的上下文环境中，通过 contextBridge 安全地将主进程受控能力
  * 暴露给渲染进程，避免直接向前端注入完整的 Node.js 环境以保障安全性。
+ *
+ * 可以把 Preload 理解为一张白名单：页面只看得到下方列出的五个动作和一个
+ * 状态订阅，不能直接访问文件、启动程序或调用任意 IPC 频道。
  */
 const { contextBridge, ipcRenderer } = require('electron');
 

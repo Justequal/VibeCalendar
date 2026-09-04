@@ -2,6 +2,9 @@
 
 本文覆盖本地环境、实时预览、代码职责、验证方法和常见排错。架构边界见 [ARCHITECTURE.md](ARCHITECTURE.md)，正式版本流程见 [RELEASING.md](RELEASING.md)。
 
+不熟悉 Electron、异步渲染或本项目术语时，先按 [代码阅读指南](CODE_WALKTHROUGH.md) 的顺序
+阅读。代码内注释解释特殊边界，本文只维护开发操作和验证方法，避免同一内容重复失真。
+
 ## 1. 环境准备
 
 - Node.js 20 或更高版本

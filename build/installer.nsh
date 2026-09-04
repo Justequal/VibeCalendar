@@ -6,7 +6,9 @@
 !ifndef BUILD_UNINSTALLER
 Var VibeCalendarInstallPathField
 
-; 将历史版本可能产生的多层品牌目录折叠为单一的 VibeCalendar。
+; NSIS 的 $INSTDIR 是安装器最终写入文件的目录。目录选择页让用户选择父目录，
+; 这里先连续剥离历史版本留下的品牌目录，再只追加一次 VibeCalendar。
+; 例如 D:\Apps\Vibe Calendar\vibe-calendar 会统一为 D:\Apps\VibeCalendar。
 Function NormalizeVibeCalendarInstallDir
   normalizeLoop:
     ${GetFileName} "$INSTDIR" $R0

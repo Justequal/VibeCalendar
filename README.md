@@ -56,14 +56,19 @@ Preload 文件后，需要停止并重新启动开发命令。
 | `npm run pack` | 生成未安装的应用目录 |
 | `npm run build` | 在 `dist/` 生成 Windows NSIS 安装包和更新元数据 |
 
-完整开发、验证和排错流程见 [开发指南](docs/DEVELOPMENT.md)。
+第一次阅读项目建议从 [代码阅读指南](docs/CODE_WALKTHROUGH.md) 开始；完整开发、验证和排错
+流程见 [开发指南](docs/DEVELOPMENT.md)。
 
 ## 项目结构
 
 ```text
 VibeCalendar/
 ├── .github/workflows/           # 持续集成与正式发布
-├── docs/                        # 架构、开发和发布文档
+├── docs/
+│   ├── CODE_WALKTHROUGH.md      # 面向前端/Electron 初学者的代码阅读路线
+│   ├── ARCHITECTURE.md          # 模块边界、数据流和扩展约定
+│   ├── DEVELOPMENT.md           # 本地开发、测试与排错
+│   └── RELEASING.md             # 版本、标签和正式发布流程
 ├── src/
 │   ├── main/
 │   │   ├── main.js              # Electron 生命周期、窗口、IPC 与实时预览
@@ -96,7 +101,8 @@ VibeCalendar/
 └── package.json
 ```
 
-模块职责、数据流和扩展边界见 [架构说明](docs/ARCHITECTURE.md)。
+面向初学者的执行流程和特殊实现见 [代码阅读指南](docs/CODE_WALKTHROUGH.md)，模块职责、数据流
+和扩展边界见 [架构说明](docs/ARCHITECTURE.md)。
 
 ## 节假日数据
 

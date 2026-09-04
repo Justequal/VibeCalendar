@@ -26,9 +26,14 @@ const IPC_CHANNELS = Object.freeze({
   installUpdate: 'updates:install'
 });
 let ipcHandlersRegistered = false;
+let mainWindow = null;
 
 // 禁用硬件加速：防止在特定 Windows 显卡环境下 GPU 进程崩溃 (0xC0000005)
 app.disableHardwareAcceleration();
+
+// 桌面快捷方式、开始菜单和更新后的自动重启可能在很短时间内重复启动程序。
+// 单实例锁保证系统里只有一个日历窗口；后启动的进程只负责唤醒已有窗口。
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 function isTrustedRenderer(event) {
   const senderUrl = event.senderFrame?.url || event.sender?.getURL?.();
@@ -126,7 +131,7 @@ function enableLivePreview(mainWindow) {
  * @returns {BrowserWindow} 创建的窗口实例
  */
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 340,
     height: 500,
     title: 'VibeCalendar', // 品牌名在中英文界面中保持一致
@@ -167,18 +172,34 @@ function createWindow() {
   return mainWindow;
 }
 
-// Electron 完成初始化后创建窗口并检查更新
-app.whenReady().then(() => {
-  console.log('🚀 Electron app.whenReady 完成，开始创建窗口...');
-  registerIpcHandlers();
-  const mainWindow = createWindow();
-  checkForUpdates(mainWindow);
+/** 将已经存在的窗口恢复到用户面前，供重复启动和 macOS 激活事件复用。 */
+function revealMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  if (mainWindow.isMinimized?.()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+  return true;
+}
 
-  // macOS 关闭所有窗口后应用仍可驻留；点击 Dock 图标时重新创建窗口
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+if (!hasSingleInstanceLock) {
+  // 另一个实例已经持有窗口；当前进程无需继续注册 IPC 或启动更新检查。
+  app.quit();
+} else {
+  app.on('second-instance', revealMainWindow);
+
+  // Electron 完成初始化后创建窗口并检查更新。
+  app.whenReady().then(() => {
+    console.log('🚀 Electron app.whenReady 完成，开始创建窗口...');
+    registerIpcHandlers();
+    const createdWindow = createWindow();
+    void checkForUpdates(createdWindow);
+
+    // macOS 关闭所有窗口后应用仍可驻留；点击 Dock 图标时重新创建窗口。
+    app.on('activate', () => {
+      if (!revealMainWindow()) createWindow();
+    });
   });
-});
+}
 
 // 当所有窗口关闭时退出应用（macOS 除外）
 app.on('window-all-closed', () => {

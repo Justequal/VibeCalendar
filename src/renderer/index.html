@@ -23,7 +23,7 @@
     <div class="calendar-header">
       <button id="prev-month" class="nav-btn" aria-label="上个月" title="上个月（←）">←</button>
       <div class="header-center">
-        <h1 id="month-year">年月</h1>
+        <h1 id="month-year" aria-live="polite" aria-atomic="true">年月</h1>
         <div class="header-controls">
           <!-- 切换一星期的首日 (周一/周日) 按钮 -->
           <button id="toggle-week-btn" class="toggle-week-btn" aria-label="切换一周起始日">首日：周一</button>
@@ -52,20 +52,20 @@
     <!-- 底部功能栏：展示时钟与版本号（点击可打开当前版本说明），以及手动检查更新按钮与回到今天按钮 -->
     <div class="footer">
       <div class="footer-info">
-        <div id="clock" class="clock">00:00:00</div>
+        <time id="clock" class="clock">00:00:00</time>
         <!-- 版本号按钮：点击展示当前安装版本的说明模态框 -->
         <button id="version-btn" class="version-btn" title="查看当前版本说明">v…</button>
       </div>
       <div class="footer-actions">
         <!-- 手动检查更新按钮 -->
-        <button id="check-update-btn" class="update-btn">检查更新</button>
+        <button id="check-update-btn" class="update-btn" aria-live="polite" aria-atomic="true">检查更新</button>
         <button id="go-today-btn" class="today-btn" title="快捷键 T">回到今天</button>
       </div>
     </div>
 
     <!-- 当前版本说明模态弹窗 -->
     <div id="release-modal" class="release-modal" hidden>
-      <section class="release-card" role="dialog" aria-modal="true" aria-labelledby="release-title">
+      <section class="release-card" role="dialog" aria-modal="true" aria-labelledby="release-title" aria-describedby="release-notes">
         <header class="release-header">
           <div>
             <h2 id="release-title">当前版本说明</h2>
@@ -73,7 +73,7 @@
           </div>
           <button id="release-close-btn" class="release-close-btn" aria-label="关闭版本说明">×</button>
         </header>
-        <div id="release-notes" class="release-notes">正在加载…</div>
+        <div id="release-notes" class="release-notes" role="document" tabindex="0">正在加载…</div>
       </section>
     </div>
   </div>

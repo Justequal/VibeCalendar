@@ -84,6 +84,7 @@ async function run() {
         versionHidden: document.getElementById('version-btn').hidden,
         updateHidden: document.getElementById('check-update-btn').hidden,
         clock: document.getElementById('clock').textContent,
+        todayCount: document.querySelectorAll('.day[aria-current="date"]').length,
         pageFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth
       };
     `);
@@ -95,6 +96,7 @@ async function run() {
     assert.equal(initial.versionHidden, false);
     assert.equal(initial.updateHidden, false);
     assert.match(initial.clock, /^\d{2}:\d{2}:\d{2}$/);
+    assert.equal(initial.todayCount, 1);
     assert.equal(initial.pageFits, true);
 
     const navigation = await invoke(window, `
@@ -219,6 +221,7 @@ async function run() {
         focused: document.activeElement?.id,
         progress: document.getElementById('check-update-btn').style.getPropertyValue('--update-progress'),
         progressNow: document.getElementById('check-update-btn').getAttribute('aria-valuenow'),
+        progressText: document.getElementById('check-update-btn').getAttribute('aria-valuetext'),
         checkDisabled: document.getElementById('check-update-btn').disabled,
         checkText: document.getElementById('check-update-btn').textContent
       };
@@ -227,6 +230,7 @@ async function run() {
     assert.equal(updateAndClose.focused, 'version-btn');
     assert.equal(updateAndClose.progress, '42');
     assert.equal(updateAndClose.progressNow, '42');
+    assert.equal(updateAndClose.progressText, 'Downloading 42%');
     assert.equal(updateAndClose.checkDisabled, true);
     assert.equal(updateAndClose.checkText, 'Downloading 42%');
 

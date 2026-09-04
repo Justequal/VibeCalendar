@@ -187,6 +187,29 @@ test('同一下载完成事件重复到达时仍只保留一次可安装状态',
   assert.equal(subject.getQuitCount(), 1);
 });
 
+test('更新进度不会倒退，下载完成后重复检查与错误不会覆盖安装入口', async () => {
+  const subject = loadUpdater();
+  await subject.module.checkForUpdates();
+
+  subject.autoUpdater.emit('update-available', { version: '1.1.2' });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(subject.getDownloadCount(), 1);
+
+  subject.autoUpdater.emit('download-progress', { percent: 68, transferred: 680, total: 1000 });
+  subject.autoUpdater.emit('download-progress', { percent: 41, transferred: 410, total: 1000 });
+  assert.equal(subject.module.getUpdateState().percent, 68);
+
+  subject.autoUpdater.emit('update-downloaded', { version: '1.1.2' });
+  subject.autoUpdater.emit('update-available', { version: '1.1.2' });
+  subject.autoUpdater.emit('error', new Error('late check failure'));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(subject.module.getUpdateState(), {
+    phase: 'downloaded', version: '1.1.2', percent: 100
+  });
+  assert.equal(subject.getDownloadCount(), 1);
+});
+
 test('快速重启启动失败时保留窗口并恢复可重试状态', async () => {
   const subject = loadUpdater({
     quitAndInstallImpl: () => { throw new Error('installer unavailable'); }

@@ -3,8 +3,11 @@
  *
  * 核心逻辑：
  * 1. 安装版启动后静默检查并在后台下载更新包；下载完成后等待用户点击“更新 vX”安装。
- * 2. 手动检查统一通过 GitHub Release 判断“有新版 / 已是最新版”，不向用户暴露下载器能力差异。
- * 3. 支持从 GitHub Releases API 查询最新版本发布日志，供版本号点击弹窗使用。
+ * 2. 安装版手动检查直接读取 electron-updater 清单；开发版才查询 GitHub Release。
+ * 3. 当前版本说明始终读取安装包内 CHANGELOG，不会把远端“最新版说明”冒充当前说明。
+ *
+ * electron-updater 的检查结果、事件回调和下载 Promise 是三条独立异步路径，先后
+ * 顺序不固定。本模块集中保存状态、合并重复任务，并保证“已下载”不会被迟到事件覆盖。
  */
 const { app } = require('electron');
 const { autoUpdater } = require('electron-updater');
@@ -182,8 +185,19 @@ function getCurrentRelease() {
   });
 }
 
+/**
+ * 保存并发送更新状态。状态先留在主进程内存中，页面刷新后可通过 getUpdateState
+ * 恢复；完全相同的事件会被折叠，避免一次进度回调触发无意义的重复 DOM 更新。
+ */
 function sendUpdateStatus(status) {
-  lastUpdateStatus = Object.freeze({ ...status });
+  const nextStatus = Object.freeze({ ...status });
+  const previousKeys = Object.keys(lastUpdateStatus);
+  const nextKeys = Object.keys(nextStatus);
+  const unchanged = previousKeys.length === nextKeys.length
+    && nextKeys.every((key) => lastUpdateStatus[key] === nextStatus[key]);
+  if (unchanged) return;
+
+  lastUpdateStatus = nextStatus;
   const webContents = updateParentWindow?.webContents;
   if (
     !updateParentWindow
@@ -216,6 +230,19 @@ function initializeAutoUpdater(parentWindow) {
 
   autoUpdater.on('update-available', (info) => {
     const version = String(info?.version || '').trim();
+
+    // 已下载的安装包始终优先。重复检查可能再次发出 update-available，不能因此
+    // 把可点击的“快速重启更新”降级为准备下载，更不能重复下载同一安装包。
+    if (downloadedUpdateVersion) {
+      availableUpdateVersion = downloadedUpdateVersion;
+      sendUpdateStatus({
+        phase: installScheduled ? 'installing' : 'downloaded',
+        version: downloadedUpdateVersion,
+        percent: 100
+      });
+      return;
+    }
+
     availableUpdateVersion = version || availableUpdateVersion;
     console.info(`发现 VibeCalendar v${version || '新版'}，正在后台下载。`);
     sendUpdateStatus({ phase: 'available', version });
@@ -227,10 +254,19 @@ function initializeAutoUpdater(parentWindow) {
   });
 
   autoUpdater.on('download-progress', (progress) => {
+    if (downloadedUpdateVersion || installScheduled) return;
+
     const rawPercent = Number(progress?.percent);
-    const percent = Number.isFinite(rawPercent)
+    const normalizedPercent = Number.isFinite(rawPercent)
       ? Math.min(100, Math.max(0, rawPercent))
       : 0;
+    const previousPercent = lastUpdateStatus.phase === 'downloading'
+      && lastUpdateStatus.version === (availableUpdateVersion || '')
+      ? Number(lastUpdateStatus.percent) || 0
+      : 0;
+    // 网络切换或差分下载回退时，electron-updater 偶尔会报告较小的瞬时值。
+    // 用户看到的进度保持单调递增，避免按钮背景来回跳动。
+    const percent = Math.max(previousPercent, normalizedPercent);
     sendUpdateStatus({
       phase: 'downloading',
       version: availableUpdateVersion || '',
@@ -240,7 +276,7 @@ function initializeAutoUpdater(parentWindow) {
     });
   });
 
-  autoUpdater.on('update-downloaded', async (info) => {
+  autoUpdater.on('update-downloaded', (info) => {
     const downloadedVersion = String(info?.version || '').trim();
     downloadedUpdateVersion = downloadedVersion || downloadedUpdateVersion || 'unknown-version';
     availableUpdateVersion = downloadedUpdateVersion;
@@ -251,7 +287,13 @@ function initializeAutoUpdater(parentWindow) {
     requestedUpdateVersion = null;
     installScheduled = false;
     console.error('自动更新检查失败：', error);
-    sendUpdateStatus({ phase: 'error' });
+    // 下载完成后的安装包仍然有效时保留可安装入口；一次后续检查失败不应让用户
+    // 失去已经下载好的更新。
+    if (downloadedUpdateVersion) {
+      sendUpdateStatus({ phase: 'downloaded', version: downloadedUpdateVersion, percent: 100 });
+    } else {
+      sendUpdateStatus({ phase: 'error' });
+    }
   });
 }
 
@@ -385,6 +427,14 @@ function startAutoUpdaterCheck(parentWindow) {
       .then((result) => {
         const latestVersion = result?.updateInfo?.version;
         if (latestVersion && compareVersions(latestVersion, app.getVersion()) > 0) {
+          if (downloadedUpdateVersion) {
+            sendUpdateStatus({
+              phase: 'downloaded',
+              version: downloadedUpdateVersion,
+              percent: 100
+            });
+            return result;
+          }
           availableUpdateVersion = latestVersion;
           sendUpdateStatus({ phase: 'available', version: latestVersion });
           void startUpdateDownload().catch((error) => {

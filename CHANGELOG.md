@@ -9,6 +9,21 @@
 
 ## [Unreleased]
 
+## [1.1.19] - 2026-09-05
+
+### 改进
+
+- 更新下载进度保持单调递增，后台事件会立即刷新按钮，避免“正在检查”遮住真实下载状态
+- 已下载的安装包不会被重复检查、迟到事件或后续网络错误覆盖，始终保留快速重启入口
+- 增加应用单实例保护，重复启动时恢复已有窗口，不再产生多个日历实例
+- 优化版本说明弹层的键盘焦点、更新进度朗读、当前日期语义和长时间运行的时钟稳定性
+- 隔离节假日异步异常并避免系统组合键误触发日历快捷键，提升长期运行可靠性
+
+### 文档
+
+- 新增面向基础编程读者的代码阅读指南，系统说明 Electron 分层、页面渲染、滚轮累计、缓存降级、更新状态机和安装路径规范化
+- 完善关键模块内部注释并修正架构文档中已过时的更新流程
+
 ## [1.1.18] - 2026-09-03
 
 ### 改进
@@ -87,6 +102,8 @@
 - 下载完成后可点击“更新 vX”执行已下载的增量安装包
 
 ## [1.1.7] - 2026-09-02
+
+> 此版本未单独创建标签或安装包，以下调整随 v1.1.8 一并发布。
 
 ### 修复
 
@@ -207,7 +224,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.18...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.19...HEAD
+[1.1.19]: https://github.com/Justequal/VibeCalendar/compare/v1.1.18...v1.1.19
 [1.1.18]: https://github.com/Justequal/VibeCalendar/compare/v1.1.17...v1.1.18
 [1.1.17]: https://github.com/Justequal/VibeCalendar/compare/v1.1.16...v1.1.17
 [1.1.16]: https://github.com/Justequal/VibeCalendar/compare/v1.1.15...v1.1.16
@@ -218,7 +236,7 @@
 [1.1.11]: https://github.com/Justequal/VibeCalendar/compare/v1.1.10...v1.1.11
 [1.1.10]: https://github.com/Justequal/VibeCalendar/compare/v1.1.9...v1.1.10
 [1.1.9]: https://github.com/Justequal/VibeCalendar/compare/v1.1.8...v1.1.9
-[1.1.8]: https://github.com/Justequal/VibeCalendar/compare/v1.1.7...v1.1.8
+[1.1.8]: https://github.com/Justequal/VibeCalendar/compare/v1.1.6...v1.1.8
 [1.1.6]: https://github.com/Justequal/VibeCalendar/compare/v1.1.5...v1.1.6
 [1.1.5]: https://github.com/Justequal/VibeCalendar/compare/v1.1.4...v1.1.5
 [1.1.4]: https://github.com/Justequal/VibeCalendar/compare/v1.1.3...v1.1.4

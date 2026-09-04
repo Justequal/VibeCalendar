@@ -3,6 +3,10 @@
  *
  * calendar-core.js 负责日期计算，holidays.js 负责数据获取；本文件只维护界面
  * 状态、DOM 渲染和用户交互，避免把不同职责混在一个大函数里。
+ *
+ * 给前端初学者的阅读提示：DOM 是浏览器中的页面对象树，elements 保存常用节点；
+ * state 保存会变化的数据；render* 函数把 state 转成页面内容；bindEvents 把按钮、
+ * 键盘和滚轮输入转换为 state 变化。文件末尾四行就是整个页面的启动顺序。
  */
 (function bootstrapCalendar() {
   const STORAGE_KEYS = Object.freeze({
@@ -12,6 +16,8 @@
 
   const TRANSLATIONS = window.VibeCalendarTranslations;
 
+  // 页面节点只查找一次。后续代码通过有含义的名字访问节点，避免在业务函数中
+  // 反复散落 document.getElementById，也能一眼看出本控制器依赖哪些 HTML 元素。
   const elements = {
     app: document.getElementById('app-container'),
     monthYear: document.getElementById('month-year'),
@@ -37,6 +43,8 @@
     releaseClose: document.getElementById('release-close-btn')
   };
 
+  // 页面唯一可变状态。visibleDate 是当前 6×7 窗口的锚点，而不是“选中的日期”；
+  // renderVersion 是异步请求序号，用于阻止较早月份的慢请求覆盖后来切换的月份。
   const state = {
     visibleDate: CalendarCore.startOfMonth(new Date()),
     startOnMonday: readBooleanPreference(STORAGE_KEYS.startOnMonday, true),
@@ -100,6 +108,7 @@
   }
 
   function renderLocalizedControls() {
+    // 日期滚动通常不改变语言，缓存语言可避免每次滚轮重绘都重复写按钮属性。
     if (renderedControlsLanguage === state.language) return;
 
     const text = getText();
@@ -163,7 +172,11 @@
     renderedWeekdayKey = renderKey;
   }
 
-  /** 创建一个日期单元格；节假日信息只影响展示，不参与日期计算。 */
+  /**
+   * 创建一个日期单元格。
+   * cell 来自纯日期模块，holidayData 来自数据服务，本函数只决定 CSS 类、短标签
+   * 和无障碍说明。这样改变颜色不会影响日期，替换数据源也不会改动页面结构。
+   */
   function createDayElement(cell, today, dateFormatter, holidaysByYear) {
     const dateKey = CalendarCore.toDateKey(cell.year, cell.month, cell.day);
     const holidayData = holidaysByYear.get(cell.year)[dateKey];
@@ -214,6 +227,7 @@
       && cell.month === today.getMonth()
       && cell.day === today.getDate();
     if (isToday) dayElement.classList.add('today');
+    if (isToday) dayElement.setAttribute('aria-current', 'date');
 
     const text = getText();
     const accessibleDate = dateFormatter.format(new Date(cell.year, cell.month, cell.day));
@@ -235,7 +249,10 @@
     return dayElement;
   }
 
-  /** 使用当前缓存同步绘制界面，因此网络慢或离线时不会出现空白日历。 */
+  /**
+   * 使用当前缓存同步绘制完整界面。DocumentFragment 是内存中的临时节点容器：
+   * 42 个日期先在内存中创建，再一次替换旧网格，减少反复触发布局计算。
+   */
   function renderCalendarGrid() {
     const year = state.visibleDate.getFullYear();
     const month = state.visibleDate.getMonth();
@@ -283,7 +300,9 @@
     const version = ++state.renderVersion;
     renderCalendarGrid();
 
-    await Promise.all(getVisibleYears().map((year) => (
+    // 数据服务本身会降级，但这里仍使用 allSettled 隔离未知异常，确保新增提供方
+    // 或浏览器存储故障永远不会形成未处理的 Promise 并影响日历交互。
+    await Promise.allSettled(getVisibleYears().map((year) => (
       window.holidayManager.fetchHolidays(year)
     )));
 
@@ -293,6 +312,7 @@
   }
 
   function moveMonth(offset) {
+    // 只改锚点并走统一渲染入口，按钮和键盘不会形成两套日期切换逻辑。
     state.visibleDate = CalendarCore.addMonths(state.visibleDate, offset);
     renderCalendar();
   }
@@ -303,9 +323,18 @@
   }
 
   function updateClock() {
-    elements.clock.textContent = new Date().toLocaleTimeString('en-US', {
+    const now = new Date();
+    elements.clock.textContent = now.toLocaleTimeString('en-US', {
       hour12: false
     });
+    elements.clock.dateTime = now.toISOString();
+  }
+
+  /** 每次按整秒边界重新调度，避免长期运行后 setInterval 累积漂移。 */
+  function scheduleClockTick() {
+    updateClock();
+    const delay = 1000 - (Date.now() % 1000) + 5;
+    setTimeout(scheduleClockTick, delay);
   }
 
   function bindEvents() {
@@ -318,6 +347,7 @@
     elements.languageToggle.addEventListener('click', () => {
       state.language = state.language === 'zh-CN' ? 'en' : 'zh-CN';
       saveLanguagePreference(state.language);
+      updateClock();
       renderCalendar();
     });
 
@@ -330,8 +360,8 @@
     elements.nextMonth.addEventListener('click', () => moveMonth(1));
     elements.close.addEventListener('click', () => window.close());
 
-    // 累计滚轮输入并按实际幅度换算行数，快速滚动时不丢弃后续事件。
-    // 同一动画帧内的行数合并为一次 DOM 重绘，既保留幅度又降低高频滚动开销。
+    // 累加器负责“滚了几行”，requestAnimationFrame 负责“何时更新页面”。浏览器
+    // 一帧内收到的多次滚轮事件会合并成一次 DOM 重绘，但总滚动幅度完整保留。
     const wheelRows = InteractionCore.createWheelRowAccumulator();
     let queuedWheelRows = 0;
     let wheelFrame = 0;
@@ -354,9 +384,19 @@
 
     document.addEventListener('keydown', (event) => {
       if (updateController.isReleaseNotesOpen()) return;
-      if (event.key === 'ArrowLeft') moveMonth(-1);
-      if (event.key === 'ArrowRight') moveMonth(1);
+      // Ctrl/Alt/Command 组合键属于系统或应用快捷键，不能被单字母 T 意外截获。
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        moveMonth(-1);
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        moveMonth(1);
+      }
       if (event.key.toLowerCase() === 't') {
+        event.preventDefault();
         state.visibleDate = CalendarCore.startOfMonth(new Date());
         renderCalendar();
       }
@@ -364,8 +404,7 @@
   }
 
   bindEvents();
-  updateClock();
+  scheduleClockTick();
   updateController.initialize();
-  setInterval(updateClock, 1000);
   renderCalendar();
 })();

@@ -2,6 +2,9 @@
 
 本文描述当前代码的职责边界、主要数据流和扩展约定。它是维护者理解项目结构的入口；具体命令见 [开发指南](DEVELOPMENT.md)，正式发布见 [发布指南](RELEASING.md)。
 
+如果只具备基础前端知识，建议先阅读 [代码阅读指南](CODE_WALKTHROUGH.md)。该文先解释 Electron
+术语，再沿真实执行顺序讲解日期渲染、滚轮累计、节假日降级、自动更新和安装路径。
+
 ## 1. 设计原则
 
 项目保持无前端框架、无打包器的轻量结构，但不把所有逻辑堆叠在一个脚本中：
@@ -68,6 +71,9 @@ Preload 通过 `contextBridge` 暴露冻结的 `window.appUpdates`：
 | `getVersion()` | 读取当前运行应用的版本号 |
 | `getCurrentRelease()` | 读取安装包内当前版本对应的维护说明 |
 | `checkForUpdates()` | 触发一次用户主动的更新检查 |
+| `installUpdate()` | 安装已经下载完成的更新并重新启动 |
+| `getUpdateState()` | 恢复页面加载前已经产生的下载状态 |
+| `onUpdateStatus()` | 订阅检查、下载进度、完成和失败事件 |
 
 页面不会获得原始 `ipcRenderer`，也不能直接调用 Node.js API。新增系统能力时，应继续采用“一个明确动作对应一个桥接方法”的方式，而不是扩大通用权限。
 
@@ -185,9 +191,8 @@ NateScarlet 的 jsDelivr 与 GitHub Raw 地址只是同一数据集的镜像，�
   → window.appUpdates
   → preload IPC
   → main/updater
-      ├─ 手动检查：GitHub Releases API → 比较版本
-      │   └─ 安装版发现新版：electron-updater → latest.yml → 后台下载
-      └─ 安装版启动检查：electron-updater → latest.yml → 后台下载
+      ├─ 安装版：electron-updater → latest.yml → 差分下载
+      └─ 开发预览：GitHub Releases API → 只比较版本
   → 返回结构化状态并更新界面
 ```
 

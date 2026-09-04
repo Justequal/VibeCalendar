@@ -383,6 +383,7 @@ h1 {
 .clock {
   font-size: 16px;
   font-weight: 300;
+  font-variant-numeric: tabular-nums; /* 每个数字等宽，秒数变化时文字不会左右抖动。 */
   letter-spacing: 1px; /* 增加字间距更有科技感 */
 }
 

@@ -27,6 +27,7 @@ function createElement() {
   return {
     textContent: '',
     title: '',
+    dataset: {},
     hidden: false,
     disabled: false,
     addEventListener: (type, listener) => listeners.set(type, listener),
@@ -70,6 +71,7 @@ const UPDATE_TEXT = Object.freeze({
 function createUpdateSubject(appUpdates) {
   const documentListeners = new Map();
   const document = {
+    activeElement: null,
     addEventListener: (type, listener) => documentListeners.set(type, listener)
   };
   const elements = Object.fromEntries([
@@ -77,6 +79,9 @@ function createUpdateSubject(appUpdates) {
     'releaseNotes', 'releaseClose'
   ].map((name) => [name, createElement()]));
   elements.releaseModal.hidden = true;
+  Object.values(elements).forEach((element) => {
+    element.focus = () => { document.activeElement = element; };
+  });
 
   const window = { appUpdates };
   loadBrowserScript('update-controller.js', {
@@ -88,7 +93,7 @@ function createUpdateSubject(appUpdates) {
     elements,
     getText: () => UPDATE_TEXT
   });
-  return { controller, documentListeners, elements };
+  return { controller, document, documentListeners, elements };
 }
 
 test('中英文词典拥有一致的顶层键，避免切换语言后出现空文案', () => {
@@ -110,7 +115,7 @@ test('中英文词典拥有一致的顶层键，避免切换语言后出现空�
 });
 
 test('更新界面控制器显示真实版本、公告并反馈手动检查结果', async () => {
-  const { controller, documentListeners, elements } = createUpdateSubject({
+  const { controller, document, documentListeners, elements } = createUpdateSubject({
     getVersion: async () => '2.3.4',
     getCurrentRelease: async () => ({ version: '2.3.4', title: 'VibeCalendar v2.3.4', notes: '**更快**' }),
     checkForUpdates: async () => ({
@@ -224,12 +229,21 @@ test('更新下载事件驱动按钮背景进度、重启更新和失败状态',
   assert.equal(elements.checkUpdate.textContent, '正在下载 42%');
   assert.equal(elements.checkUpdate.style.getPropertyValue('--update-progress'), 42);
   assert.equal(elements.checkUpdate.getAttribute('aria-valuenow'), '42');
+  assert.equal(elements.checkUpdate.getAttribute('aria-valuetext'), '正在下载 42%');
+
+  // 下载器的瞬时回退不会让用户看到进度条倒退。
+  updateListener({ phase: 'downloading', version: '2.4.0', percent: 37 });
+  assert.equal(elements.checkUpdate.textContent, '正在下载 42%');
 
   updateListener({ phase: 'downloaded', version: '2.4.0' });
   assert.equal(elements.checkUpdate.style.getPropertyValue('--update-progress'), 100);
   assert.equal(elements.checkUpdate.disabled, false);
   assert.equal(elements.checkUpdate.getAttribute('aria-label'), '快速重启更新 V2.4.0');
   assert.equal(elements.checkUpdate.classList.contains('is-ready'), true);
+
+  // 同一检查的迟到事件不能覆盖已经完成下载的可安装状态。
+  updateListener({ phase: 'available', version: '2.4.0' });
+  assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
 
   await elements.checkUpdate.dispatch('click');
   assert.equal(elements.checkUpdate.textContent, '正在快速重启');
@@ -238,6 +252,55 @@ test('更新下载事件驱动按钮背景进度、重启更新和失败状态',
   updateListener({ phase: 'error' });
   assert.equal(elements.checkUpdate.textContent, '失败');
   assert.equal(elements.checkUpdate.classList.contains('is-error'), true);
+});
+
+test('下载事件立即取代检查状态，较晚返回的检查结果不会覆盖进度', async () => {
+  let finishCheck;
+  let updateListener;
+  const pendingCheck = new Promise((resolve) => { finishCheck = resolve; });
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    getUpdateState: async () => ({ phase: 'idle' }),
+    checkForUpdates: () => pendingCheck,
+    onUpdateStatus: (listener) => {
+      updateListener = listener;
+      return () => {};
+    }
+  });
+
+  await controller.initialize();
+  const checkAction = elements.checkUpdate.dispatch('click');
+  await Promise.resolve();
+  updateListener({ phase: 'downloading', version: '2.4.0', percent: 28 });
+  assert.equal(elements.checkUpdate.textContent, '正在下载 28%');
+
+  finishCheck({ status: 'available', latestVersion: '2.4.0', downloadStarted: true });
+  await checkAction;
+  assert.equal(elements.checkUpdate.textContent, '正在下载 28%');
+});
+
+test('版本说明弹层将 Tab 焦点限制在关闭按钮和公告正文中', async () => {
+  const { controller, document, documentListeners, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    getUpdateState: async () => ({ phase: 'idle' }),
+    getCurrentRelease: async () => ({ version: '2.3.4', notes: '说明' }),
+    onUpdateStatus: () => () => {}
+  });
+  await controller.initialize();
+  await elements.version.dispatch('click');
+
+  let prevented = 0;
+  documentListeners.get('keydown')({
+    key: 'Tab', shiftKey: false, preventDefault: () => { prevented += 1; }
+  });
+  assert.equal(document.activeElement, elements.releaseNotes);
+  assert.equal(prevented, 1);
+
+  documentListeners.get('keydown')({
+    key: 'Tab', shiftKey: true, preventDefault: () => { prevented += 1; }
+  });
+  assert.equal(document.activeElement, elements.releaseClose);
+  assert.equal(prevented, 2);
 });
 
 test('窗口加载后恢复主进程已经下载完成的更新状态', async () => {

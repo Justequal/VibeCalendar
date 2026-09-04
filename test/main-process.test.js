@@ -4,13 +4,14 @@ const Module = require('node:module');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
-async function loadMainProcess({ livePreview = false } = {}) {
+async function loadMainProcess({ livePreview = false, singleInstanceLock = true } = {}) {
   const ipcHandlers = new Map();
   const appListeners = new Map();
   const updateCalls = [];
   const installCalls = [];
   let releaseCalls = 0;
   let stateCalls = 0;
+  let quitCalls = 0;
   let watcher;
 
   class FakeBrowserWindow {
@@ -31,7 +32,13 @@ async function loadMainProcess({ livePreview = false } = {}) {
 
     loadFile(filename) { this.loadedFile = filename; }
     isDestroyed() { return this.destroyed; }
-    focus() {}
+    focus() { this.focusCount = (this.focusCount || 0) + 1; }
+    show() { this.showCount = (this.showCount || 0) + 1; }
+    isMinimized() { return Boolean(this.minimized); }
+    restore() {
+      this.minimized = false;
+      this.restoreCount = (this.restoreCount || 0) + 1;
+    }
     setAlwaysOnTop() {}
     once(event, handler) { this.windowListeners.set(event, handler); }
   }
@@ -44,7 +51,8 @@ async function loadMainProcess({ livePreview = false } = {}) {
       disableHardwareAcceleration: () => {},
       getVersion: () => '1.1.1',
       on: (event, handler) => appListeners.set(event, handler),
-      quit: () => {},
+      quit: () => { quitCalls += 1; },
+      requestSingleInstanceLock: () => singleInstanceLock,
       whenReady: () => Promise.resolve()
     },
     BrowserWindow: FakeBrowserWindow,
@@ -113,6 +121,7 @@ async function loadMainProcess({ livePreview = false } = {}) {
     installCalls,
     getReleaseCalls: () => releaseCalls,
     getStateCalls: () => stateCalls,
+    getQuitCalls: () => quitCalls,
     watcher,
     window: FakeBrowserWindow.instances[0]
   };
@@ -132,6 +141,21 @@ test('主进程以安全配置创建窗口，并在启动后自动检查更新',
   assert.equal(subject.updateCalls.length, 1);
   assert.equal(subject.updateCalls[0][0], window);
   assert.equal(subject.updateCalls[0][1], undefined);
+});
+
+test('重复启动只唤醒已有窗口，未取得单实例锁时不创建窗口', async () => {
+  const subject = await loadMainProcess();
+  subject.window.minimized = true;
+
+  subject.appListeners.get('second-instance')();
+  assert.equal(subject.window.restoreCount, 1);
+  assert.equal(subject.window.showCount, 1);
+  assert.equal(subject.window.focusCount, 1);
+
+  const duplicate = await loadMainProcess({ singleInstanceLock: false });
+  assert.equal(duplicate.window, undefined);
+  assert.equal(duplicate.getQuitCalls(), 1);
+  assert.equal(duplicate.updateCalls.length, 0);
 });
 
 test('实时预览只监听前端资源，并合并连续保存后刷新窗口', async () => {
