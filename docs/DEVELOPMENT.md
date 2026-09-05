@@ -193,6 +193,14 @@ GitHub Release 正文由 `scripts/extract-release-notes.js` 从 `CHANGELOG.md` �
 
 ## 10. CI 与本地打包
 
+`npm test` 通过 `scripts/run-tests.js` 为每个测试文件创建独立 Node 进程，保留原生断言和
+TAP 文本报告，任一失败立即返回非零退出码。这样避免测试运行器的二进制结果汇总异常，
+不以取消隔离或跳过测试来换取通过。只检查更新模块时可运行：
+
+```bash
+node scripts/run-tests.js test/updater.test.js test/renderer-modules.test.js
+```
+
 CI 配置位于 `.github/workflows/`：
 
 - Pull Request 在 Ubuntu 上安装依赖并运行 `npm run verify`。

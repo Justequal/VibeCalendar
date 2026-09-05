@@ -9,7 +9,17 @@
 
 ## [Unreleased]
 
+## [1.1.21] - 2026-09-05
+
+### 修复
+
+- 包含 v1.1.20 的更新进度防覆盖、重启失败恢复、窗口状态恢复等改进，保持日历设计和基本操作不变
+- 修复自动发布时测试结果传输异常导致的流程中断；继续逐文件隔离执行所有测试，不跳过断言
+- 完善异步更新机制的注释、阅读指南与回归测试
+
 ## [1.1.20] - 2026-09-05
+
+此版本标签已推送，但远端测试运行器异常导致发布中止，未生成正式 Release；改进由 v1.1.21 发布。
 
 ### 修复
 
@@ -238,7 +248,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.20...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.21...HEAD
+[1.1.21]: https://github.com/Justequal/VibeCalendar/compare/v1.1.19...v1.1.21
 [1.1.20]: https://github.com/Justequal/VibeCalendar/compare/v1.1.19...v1.1.20
 [1.1.19]: https://github.com/Justequal/VibeCalendar/compare/v1.1.18...v1.1.19
 [1.1.18]: https://github.com/Justequal/VibeCalendar/compare/v1.1.17...v1.1.18
