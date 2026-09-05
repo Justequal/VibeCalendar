@@ -9,6 +9,20 @@
 
 ## [Unreleased]
 
+## [1.1.20] - 2026-09-05
+
+### 修复
+
+- 修复检查结果与下载事件乱序时，按钮进度被覆盖、错误后卡在准备下载的问题
+- 修复窗口重新加载时旧状态覆盖实时进度；读取版本号失败也不再阻断更新状态恢复
+- 修复快速重启安装失败后窗口隐藏、按钮无法重试的问题，统一处理异常和更新器错误事件
+- 避免重复检查打断当前下载进度，以及下载失败后立即重试时误报已经开始下载
+
+### 维护
+
+- 完善更新模块的内部注释和阅读指南，解释异步消息顺序、失败恢复与差分下载的边界
+- 新增 13 项更新流程回归测试，并补充真实窗口中的安装失败恢复检查；日历设计与基本操作保持不变
+
 ## [1.1.19] - 2026-09-05
 
 ### 改进
@@ -224,7 +238,8 @@
 - GitHub Actions 持续集成与正式版本自动发布
 - 启动时静默检查、后台下载并提示安装新版本
 
-[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.19...HEAD
+[Unreleased]: https://github.com/Justequal/VibeCalendar/compare/v1.1.20...HEAD
+[1.1.20]: https://github.com/Justequal/VibeCalendar/compare/v1.1.19...v1.1.20
 [1.1.19]: https://github.com/Justequal/VibeCalendar/compare/v1.1.18...v1.1.19
 [1.1.18]: https://github.com/Justequal/VibeCalendar/compare/v1.1.17...v1.1.18
 [1.1.17]: https://github.com/Justequal/VibeCalendar/compare/v1.1.16...v1.1.17

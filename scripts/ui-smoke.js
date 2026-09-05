@@ -245,6 +245,19 @@ async function run() {
     assert.deepEqual(downloaded.before, { text: 'Quick restart to update V9.9.9', disabled: false });
     assert.equal(downloaded.after, 'Restarting to update…');
 
+    // 通过真实 Preload/IPC 发送安装失败后的恢复状态；不启动或替换本机应用。
+    window.webContents.send('updates:status', {
+      phase: 'downloaded', version: '9.9.9', percent: 100
+    });
+    const recovered = await invoke(window, `
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const button = document.getElementById('check-update-btn');
+      return { text: button.textContent, disabled: button.disabled, busy: button.getAttribute('aria-busy') };
+    `);
+    assert.deepEqual(recovered, {
+      text: 'Quick restart to update V9.9.9', disabled: false, busy: 'false'
+    });
+
     const fastWheel = await invoke(window, `
       const before = document.querySelector('.day')?.dataset.date;
       document.getElementById('app-container').dispatchEvent(new WheelEvent('wheel', {
@@ -265,6 +278,8 @@ async function run() {
     ipcMain.removeHandler('app:get-version');
     ipcMain.removeHandler('updates:get-current-release');
     ipcMain.removeHandler('updates:check');
+    ipcMain.removeHandler('updates:get-state');
+    ipcMain.removeHandler('updates:install');
   }
 }
 

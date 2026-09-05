@@ -23,11 +23,12 @@ let updateCheckPromise = null;
 // 正在进行的更新下载 Promise，避免启动检查与手动检查重复下载
 let updateDownloadPromise = null;
 let requestedUpdateVersion = null;
-// 主窗口引用，用于模态弹窗挂载
+// 主窗口引用，用于发送状态，以及安装失败时恢复被本模块隐藏的窗口。
 let updateParentWindow = null;
 let downloadedUpdateVersion = null;
 let availableUpdateVersion = null;
 let installScheduled = false;
+let windowHiddenForInstall = false;
 let lastUpdateStatus = Object.freeze({ phase: 'idle' });
 // Release 请求在短时间内复用，减少重复点击对 GitHub API 的压力
 let latestReleaseCache = null;
@@ -215,6 +216,28 @@ function getUpdateState() {
 }
 
 /**
+ * 更新器可能抛异常，也可能只发出 error 事件；两条失败路径必须执行相同的恢复。
+ * 只恢复因本次安装而隐藏的窗口，不打扰用户主动隐藏的日历。应用若已经退出，
+ * 此处无法介入安装器的后续失败；是否完成覆盖仍由 Windows 安装器负责。
+ */
+function handleUpdateError(error) {
+  requestedUpdateVersion = null;
+  installScheduled = false;
+  console.error('自动更新失败：', error);
+  if (windowHiddenForInstall) {
+    windowHiddenForInstall = false;
+    if (updateParentWindow && !updateParentWindow.isDestroyed()) {
+      updateParentWindow.show?.();
+      updateParentWindow.focus?.();
+    }
+  }
+  // 安装未启动成功不等于下载包丢失，保留重启入口供重试。
+  sendUpdateStatus(downloadedUpdateVersion
+    ? { phase: 'downloaded', version: downloadedUpdateVersion, percent: 100 }
+    : { phase: 'error' });
+}
+
+/**
  * 初始化 electron-updater 事件监听器
  * @param {import('electron').BrowserWindow|null} parentWindow
  */
@@ -245,7 +268,9 @@ function initializeAutoUpdater(parentWindow) {
 
     availableUpdateVersion = version || availableUpdateVersion;
     console.info(`发现 VibeCalendar v${version || '新版'}，正在后台下载。`);
-    sendUpdateStatus({ phase: 'available', version });
+    if (lastUpdateStatus.phase !== 'downloading' || lastUpdateStatus.version !== version) {
+      sendUpdateStatus({ phase: 'available', version });
+    }
     // 以 update-available 事件作为最早的可靠下载起点；startAutoUpdaterCheck
     // 还会做一次兜底调用，二者由 startUpdateDownload 自动合并。
     void startUpdateDownload().catch((error) => {
@@ -280,28 +305,22 @@ function initializeAutoUpdater(parentWindow) {
     const downloadedVersion = String(info?.version || '').trim();
     downloadedUpdateVersion = downloadedVersion || downloadedUpdateVersion || 'unknown-version';
     availableUpdateVersion = downloadedUpdateVersion;
-    sendUpdateStatus({ phase: 'downloaded', version: downloadedUpdateVersion, percent: 100 });
+    sendUpdateStatus({
+      phase: installScheduled ? 'installing' : 'downloaded',
+      version: downloadedUpdateVersion,
+      percent: 100
+    });
   });
 
-  autoUpdater.on('error', (error) => {
-    requestedUpdateVersion = null;
-    installScheduled = false;
-    console.error('自动更新检查失败：', error);
-    // 下载完成后的安装包仍然有效时保留可安装入口；一次后续检查失败不应让用户
-    // 失去已经下载好的更新。
-    if (downloadedUpdateVersion) {
-      sendUpdateStatus({ phase: 'downloaded', version: downloadedUpdateVersion, percent: 100 });
-    } else {
-      sendUpdateStatus({ phase: 'error' });
-    }
-  });
+  autoUpdater.on('error', handleUpdateError);
 }
 
 /**
- * 在渲染层明确点击“快速重启更新 vX”后安装已下载的差分更新包。
+ * 在渲染层明确点击“快速重启更新 vX”后安装已下载的更新包。
  *
- * 安装器接管后立即隐藏旧窗口，随后静默覆盖安装并重新启动新版。electron-updater
- * 会在当前 IPC 调用结束后退出应用，因此无需再增加人为等待。重复点击只安排一次。
+ * 差分发生在下载阶段，安装阶段仍运行完整 NSIS 安装器，静默覆盖后重新启动。
+ * quitAndInstall 没有“成功接管”的返回值；隐藏只是过渡效果，必须处理其 error
+ * 事件并恢复窗口，不能把方法正常返回当成安装成功。重复点击只安排一次。
  */
 function installUpdate() {
   if (!downloadedUpdateVersion) return { status: 'not-ready' };
@@ -310,16 +329,16 @@ function installUpdate() {
   installScheduled = true;
   sendUpdateStatus({ phase: 'installing', version: downloadedUpdateVersion, percent: 100 });
   try {
-    // 静默启动增量安装器；安装完成后强制拉起新版应用。
+    // 两个 true 分别表示静默安装、完成后重新打开应用。
     autoUpdater.quitAndInstall(true, true);
-    // 安装器已成功接管后立刻收起旧窗口，减少等待与界面残留感。
+    // 某些失败会在上面调用中同步发出 error 而不抛异常，恢复处理会清除此标记。
+    if (!installScheduled) return { status: 'error', version: downloadedUpdateVersion };
     if (updateParentWindow && !updateParentWindow.isDestroyed()) {
+      windowHiddenForInstall = true;
       updateParentWindow.hide?.();
     }
   } catch (error) {
-    installScheduled = false;
-    console.error('安装已下载的更新失败：', error);
-    sendUpdateStatus({ phase: 'error' });
+    handleUpdateError(error);
     return { status: 'error', version: downloadedUpdateVersion };
   }
   return { status: 'installing', version: downloadedUpdateVersion };
@@ -407,8 +426,7 @@ function startUpdateDownload() {
     updateDownloadPromise = Promise.resolve()
       .then(() => autoUpdater.downloadUpdate())
       .catch((error) => {
-        requestedUpdateVersion = null;
-        sendUpdateStatus({ phase: 'error' });
+        handleUpdateError(error);
         throw error;
       })
       .finally(() => {
@@ -422,21 +440,30 @@ function startUpdateDownload() {
 function startAutoUpdaterCheck(parentWindow) {
   initializeAutoUpdater(parentWindow);
   if (!updateCheckPromise) {
+    // 新请求可以从失败中恢复；清除上一轮错误，但不清除下载中/已下载状态。
+    // 复用中的请求不会走这里，所以本轮刚发生的失败仍会准确返回给所有调用者。
+    if (lastUpdateStatus.phase === 'error') sendUpdateStatus({ phase: 'idle' });
+    const statusAtStart = lastUpdateStatus;
     updateCheckPromise = Promise.resolve()
       .then(() => autoUpdater.checkForUpdates())
       .then((result) => {
         const latestVersion = result?.updateInfo?.version;
         if (latestVersion && compareVersions(latestVersion, app.getVersion()) > 0) {
+          // 事件路径已负责启动下载；检查结果只是无事件时的兜底。期间收到任何
+          // 新状态（尤其进度或失败）后，不再用较旧的检查结论覆盖它或偷偷重试。
+          if (lastUpdateStatus !== statusAtStart) return result;
           if (downloadedUpdateVersion) {
             sendUpdateStatus({
-              phase: 'downloaded',
+              phase: installScheduled ? 'installing' : 'downloaded',
               version: downloadedUpdateVersion,
               percent: 100
             });
             return result;
           }
           availableUpdateVersion = latestVersion;
-          sendUpdateStatus({ phase: 'available', version: latestVersion });
+          if (lastUpdateStatus.phase !== 'downloading' || lastUpdateStatus.version !== latestVersion) {
+            sendUpdateStatus({ phase: 'available', version: latestVersion });
+          }
           void startUpdateDownload().catch((error) => {
             console.error('下载新版本失败：', error);
           });
@@ -465,6 +492,11 @@ async function checkForUpdates(parentWindow, { manual = false } = {}) {
     if (app.isPackaged && isUpdateConfigured()) {
       try {
         const result = await startAutoUpdaterCheck(parentWindow);
+        // 下载可能比检查 Promise 更早失败。也覆盖用户在失败后立刻重试、但仍
+        // 复用旧检查 Promise 的情况：此时不能声称 downloadStarted 为 true。
+        if (lastUpdateStatus.phase === 'error') {
+          return { status: 'error', currentVersion };
+        }
         const latestVersion = String(result?.updateInfo?.version || '').trim();
         if (!latestVersion || compareVersions(latestVersion, currentVersion) <= 0) {
           return {

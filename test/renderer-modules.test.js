@@ -96,6 +96,124 @@ function createUpdateSubject(appUpdates) {
   return { controller, document, documentListeners, elements };
 }
 
+// 可控的异步响应：由测试决定何时成功或失败，稳定复现网络与 IPC 的乱序。
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+}
+
+test('下载失败事件不会被迟到的发现新版结果覆盖，按钮保持可重试', async () => {
+  const pending = deferred();
+  let notify;
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    checkForUpdates: () => pending.promise,
+    onUpdateStatus: (listener) => { notify = listener; }
+  });
+  await controller.initialize();
+  const action = elements.checkUpdate.dispatch('click');
+  notify({ phase: 'error' });
+  pending.resolve({ status: 'available', latestVersion: '2.4.0' });
+  await action;
+  assert.equal(elements.checkUpdate.textContent, '失败');
+  assert.equal(elements.checkUpdate.disabled, false);
+});
+
+for (const outcome of ['up-to-date', 'error', 'reject']) {
+  test(`下载完成后迟到的 ${outcome} 检查结果不覆盖重启入口`, async () => {
+    const pending = deferred();
+    let notify;
+    const { controller, elements } = createUpdateSubject({
+      getVersion: async () => '2.3.4',
+      checkForUpdates: () => pending.promise,
+      onUpdateStatus: (listener) => { notify = listener; }
+    });
+    await controller.initialize();
+    const action = elements.checkUpdate.dispatch('click');
+    notify({ phase: 'downloaded', version: '2.4.0' });
+    if (outcome === 'reject') pending.reject(new Error('late IPC failure'));
+    else pending.resolve({ status: outcome });
+    await action;
+    assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
+    assert.equal(elements.checkUpdate.disabled, false);
+  });
+}
+
+test('上一次检查的 finally 不会解除新检查的忙碌状态', async () => {
+  const first = deferred();
+  const second = deferred();
+  let count = 0;
+  let notify;
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    checkForUpdates: () => (++count === 1 ? first.promise : second.promise),
+    onUpdateStatus: (listener) => { notify = listener; }
+  });
+  await controller.initialize();
+  const firstAction = elements.checkUpdate.dispatch('click');
+  notify({ phase: 'error' });
+  const secondAction = elements.checkUpdate.dispatch('click');
+  first.resolve({ status: 'up-to-date' });
+  await firstAction;
+  assert.equal(elements.checkUpdate.textContent, '正在检查');
+  assert.equal(elements.checkUpdate.disabled, true);
+  second.resolve({ status: 'up-to-date' });
+  await secondAction;
+  assert.equal(elements.checkUpdate.textContent, '已是最新');
+});
+
+test('旧启动快照不能覆盖期间收到的下载进度', async () => {
+  const snapshot = deferred();
+  let notify;
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    getUpdateState: () => snapshot.promise,
+    onUpdateStatus: (listener) => { notify = listener; }
+  });
+  const initialization = controller.initialize();
+  notify({ phase: 'downloading', version: '2.4.0', percent: 61 });
+  snapshot.resolve({ phase: 'error' });
+  await initialization;
+  assert.equal(elements.checkUpdate.textContent, '正在下载 61%');
+});
+
+test('版本读取失败也能恢复安装状态，安装错误事件恢复重试入口', async () => {
+  let notify;
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => { throw new Error('version failed'); },
+    getUpdateState: async () => ({ phase: 'installing', version: '2.4.0' }),
+    onUpdateStatus: (listener) => { notify = listener; }
+  });
+  await controller.initialize();
+  assert.equal(elements.checkUpdate.textContent, '正在快速重启');
+  notify({ phase: 'downloaded', version: '2.4.0' });
+  assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
+  assert.equal(elements.checkUpdate.disabled, false);
+});
+
+test('安装恢复事件优先于迟到的 installing 返回，忙碌阶段不重复提交', async () => {
+  const pending = deferred();
+  let notify;
+  let installCount = 0;
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    getUpdateState: async () => ({ phase: 'downloaded', version: '2.4.0' }),
+    installUpdate: () => { installCount += 1; return pending.promise; },
+    onUpdateStatus: (listener) => { notify = listener; }
+  });
+  await controller.initialize();
+  const action = elements.checkUpdate.dispatch('click');
+  await elements.checkUpdate.dispatch('click');
+  assert.equal(installCount, 1);
+  notify({ phase: 'downloaded', version: '2.4.0' });
+  pending.resolve({ status: 'installing' });
+  await action;
+  assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
+  assert.equal(elements.checkUpdate.disabled, false);
+});
+
 test('中英文词典拥有一致的顶层键，避免切换语言后出现空文案', () => {
   const window = loadBrowserScript('translations.js');
   const translations = window.VibeCalendarTranslations;

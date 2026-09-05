@@ -13,6 +13,10 @@
   function createUpdateController({ elements, getText }) {
     let checking = false;
     let updateState = { phase: 'idle', version: '', percent: 0 };
+    // 每次收到有效事件或开始新操作都递增。异步请求记住出发时的序号，返回时
+    // 若序号已变，就说明画面已有更新的信息，旧结果不能再修改按钮（包括 finally）。
+    let stateRevision = 0;
+    let initialized = false;
 
     /**
      * electron-updater 的事件和 IPC 返回来自两条异步通道，抵达顺序并不固定。
@@ -33,7 +37,7 @@
         && nextPhase === 'available'
       ) || (
         updateState.phase === 'installing'
-        && nextPhase !== 'error'
+        && ['available', 'downloading'].includes(nextPhase)
       );
     }
 
@@ -108,15 +112,15 @@
 
     function handleUpdateStatus(status) {
       if (!status || typeof status !== 'object') return;
+      if (!['available', 'downloading', 'downloaded', 'installing', 'error'].includes(status.phase)) return;
       const version = String(status.version || updateState.version || '').trim();
       const sameVersion = !version || !updateState.version || version === updateState.version;
 
       // 后台事件比手动检查的 IPC 返回更及时；一旦下载器开始工作，立刻展示真实
       // 状态，避免按钮继续停在“正在检查”。乱序的旧事件也不能让进度倒退。
-      if (['available', 'downloading', 'downloaded', 'error'].includes(status.phase)) {
-        checking = false;
-      }
       if (shouldIgnoreStaleStatus(status.phase, version)) return;
+      stateRevision += 1;
+      checking = false;
 
       if (status.phase === 'available') {
         updateState = { phase: 'available', version, percent: 0 };
@@ -134,6 +138,8 @@
         };
       } else if (status.phase === 'downloaded') {
         updateState = { phase: 'downloaded', version, percent: 100 };
+      } else if (status.phase === 'installing') {
+        updateState = { phase: 'installing', version, percent: 100 };
       } else if (status.phase === 'error') {
         updateState = { phase: 'error', version, percent: 0 };
       } else {
@@ -187,21 +193,24 @@
     }
 
     async function checkForUpdates() {
-      if (checking) return;
+      if (checking || ['available', 'downloading', 'installing'].includes(updateState.phase)) return;
+      const requestRevision = ++stateRevision;
 
       if (updateState.phase === 'downloaded') {
         updateState = { ...updateState, phase: 'installing' };
         renderUpdateState();
         try {
           const result = await root.appUpdates.installUpdate();
-          if (result?.status !== 'installing') {
+          if (requestRevision === stateRevision && result?.status !== 'installing') {
             updateState = { ...updateState, phase: 'downloaded' };
             renderUpdateState();
           }
         } catch (error) {
           console.warn('安装更新失败：', error);
-          updateState = { ...updateState, phase: 'downloaded' };
-          renderUpdateState();
+          if (requestRevision === stateRevision) {
+            updateState = { ...updateState, phase: 'downloaded' };
+            renderUpdateState();
+          }
         }
         return;
       }
@@ -212,36 +221,32 @@
 
       try {
         const result = await root.appUpdates.checkForUpdates();
-        const text = getText();
-        if (result.status === 'available') {
+        // 不只保护下载进度：较晚的“已是最新”、错误和 available 结论，都不能
+        // 覆盖本请求期间已经收到的事件或用户发起的新操作。
+        if (requestRevision !== stateRevision) return;
+        if (result?.status === 'available') {
           const version = result.latestVersion || result.version;
-          // 下载进度事件可能先于 IPC 结果到达，不用较旧的 available 状态覆盖它。
-          if (!['downloading', 'downloaded'].includes(updateState.phase)) {
-            updateState = {
-              phase: result.downloadStarted === false ? 'found' : 'available',
-              version,
-              percent: 0
-            };
-            renderUpdateState();
-          }
-        } else if (result.status === 'up-to-date') {
+          updateState = {
+            phase: result.downloadStarted === false ? 'found' : 'available',
+            version,
+            percent: 0
+          };
+        } else if (result?.status === 'up-to-date') {
           updateState = { phase: 'up-to-date', version: '', percent: 0 };
-          renderUpdateState();
-        } else if (result.status === 'error') {
-          updateState = { phase: 'error', version: '', percent: 0 };
-          renderUpdateState();
         } else {
           // IPC 返回结构异常时也必须结束“正在检查”状态，不能表现为没有反应。
           updateState = { phase: 'error', version: '', percent: 0 };
-          renderUpdateState();
         }
       } catch (error) {
         console.warn('手动检查更新失败：', error);
-        updateState = { phase: 'error', version: '', percent: 0 };
-        renderUpdateState();
+        if (requestRevision === stateRevision) {
+          updateState = { phase: 'error', version: '', percent: 0 };
+        }
       } finally {
-        checking = false;
-        updateButton();
+        if (requestRevision === stateRevision) {
+          checking = false;
+          renderUpdateState();
+        }
       }
     }
 
@@ -273,6 +278,8 @@
     }
 
     async function initialize() {
+      if (initialized) return;
+      initialized = true;
       syncLanguage();
       if (!root.appUpdates) {
         elements.version.hidden = true;
@@ -282,15 +289,26 @@
 
       bindEvents();
       root.appUpdates.onUpdateStatus?.(handleUpdateStatus);
-      try {
-        elements.version.textContent = `v${await root.appUpdates.getVersion()}`;
-        const initialUpdateState = await root.appUpdates.getUpdateState?.();
-        if (initialUpdateState?.phase && initialUpdateState.phase !== 'idle') {
-          handleUpdateStatus(initialUpdateState);
-        }
-      } catch (error) {
-        console.warn('读取应用版本失败：', error);
-      }
+      const initialRevision = stateRevision;
+      // 版本号和更新快照互不依赖：一个失败不能阻断另一个。先订阅事件再取快照，
+      // 但只在期间没有新事件/点击时应用快照，避免“旧照片”覆盖实时下载进度。
+      await Promise.all([
+        (async () => {
+          try {
+            elements.version.textContent = `v${await root.appUpdates.getVersion()}`;
+          } catch (error) {
+            console.warn('读取应用版本失败：', error);
+          }
+        })(),
+        (async () => {
+          try {
+            const initialUpdateState = await root.appUpdates.getUpdateState?.();
+            if (initialRevision === stateRevision) handleUpdateStatus(initialUpdateState);
+          } catch (error) {
+            console.warn('恢复更新状态失败：', error);
+          }
+        })()
+      ]);
     }
 
     return Object.freeze({

@@ -229,7 +229,77 @@ test('快速重启启动失败时保留窗口并恢复可重试状态', async ()
 
   assert.deepEqual(subject.module.installUpdate(), { status: 'error', version: '1.1.2' });
   assert.equal(windowHidden, false);
-  assert.equal(subject.module.getUpdateState().phase, 'error');
+  assert.equal(subject.module.getUpdateState().phase, 'downloaded');
+});
+
+test('安装器同步发出 error 而不抛异常时，不能隐藏窗口或返回安装中', async () => {
+  const subject = loadUpdater({
+    quitAndInstallImpl: () => subject.autoUpdater.emit('error', new Error('spawn failed'))
+  });
+  let hideCount = 0;
+  await subject.module.checkForUpdates({
+    isDestroyed: () => false,
+    hide: () => { hideCount += 1; }
+  });
+  subject.autoUpdater.emit('update-downloaded', { version: '1.1.2' });
+  assert.equal(subject.module.installUpdate().status, 'error');
+  assert.equal(hideCount, 0);
+  assert.equal(subject.module.getUpdateState().phase, 'downloaded');
+  subject.module.installUpdate();
+  assert.equal(subject.getQuitCount(), 2);
+});
+
+test('安装异步失败时恢复刚隐藏的窗口，普通检查错误不会抢焦点', async () => {
+  const subject = loadUpdater();
+  const actions = [];
+  await subject.module.checkForUpdates({
+    isDestroyed: () => false,
+    hide: () => actions.push('hide'),
+    show: () => actions.push('show'),
+    focus: () => actions.push('focus')
+  });
+  subject.autoUpdater.emit('update-downloaded', { version: '1.1.2' });
+  subject.module.installUpdate();
+  subject.autoUpdater.emit('error', new Error('async spawn failed'));
+  assert.deepEqual(actions, ['hide', 'show', 'focus']);
+  assert.equal(subject.module.getUpdateState().phase, 'downloaded');
+  subject.autoUpdater.emit('error', new Error('unrelated error'));
+  assert.deepEqual(actions, ['hide', 'show', 'focus']);
+});
+
+for (const phase of ['downloading', 'error']) {
+  test(`检查返回不覆盖${phase === 'error' ? '下载错误' : '下载进度'}`, async () => {
+    let finish;
+    const pending = new Promise((resolve) => { finish = resolve; });
+    const subject = loadUpdater({ checkForUpdatesImpl: () => pending });
+    const action = subject.module.checkForUpdates(undefined, { manual: true });
+    await new Promise((resolve) => setImmediate(resolve));
+    subject.autoUpdater.emit('update-available', { version: '1.1.2' });
+    await new Promise((resolve) => setImmediate(resolve));
+    if (phase === 'downloading') {
+      subject.autoUpdater.emit('download-progress', { percent: 67 });
+      subject.autoUpdater.emit('update-available', { version: '1.1.2' });
+    } else {
+      subject.autoUpdater.emit('error', new Error('download failed'));
+    }
+    const retry = subject.module.checkForUpdates(undefined, { manual: true });
+    finish({ updateInfo: { version: '1.1.2' } });
+    const results = await Promise.all([action, retry]);
+    if (phase === 'error') results.forEach((result) => assert.equal(result.status, 'error'));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(subject.module.getUpdateState().phase, phase);
+    if (phase === 'downloading') assert.equal(subject.module.getUpdateState().percent, 67);
+    assert.equal(subject.getDownloadCount(), 1);
+  });
+}
+
+test('失败后的新检查可以恢复为已是最新版，不沿用上一轮错误', async () => {
+  const subject = loadUpdater();
+  await subject.module.checkForUpdates(undefined, { manual: true });
+  subject.autoUpdater.emit('error', new Error('previous request failed'));
+  const result = await subject.module.checkForUpdates(undefined, { manual: true });
+  assert.equal(result.status, 'up-to-date');
+  assert.equal(subject.getDownloadCount(), 0);
 });
 
 test('开发版自动检查不访问更新服务', async () => {
