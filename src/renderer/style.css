@@ -418,84 +418,19 @@ h1 {
   transition: all 0.3s ease;
 }
 
-.update-btn {
-  --update-progress: 0;
-  color: #c7d2fe;
-  background: linear-gradient(
-    90deg,
-    rgba(79, 70, 229, 0.92) 0,
-    rgba(79, 70, 229, 0.92) calc(var(--update-progress) * 1%),
-    rgba(129, 140, 248, 0.09) calc(var(--update-progress) * 1%),
-    rgba(129, 140, 248, 0.09) 100%
-  );
-  overflow: hidden;
-}
-
-.today-btn:hover {
-  background: rgba(129, 140, 248, 0.26);
-  border-color: rgba(129, 140, 248, 0.48);
-}
-
-.update-btn:hover:not(:disabled) {
-  background: linear-gradient(
-    90deg,
-    rgba(99, 102, 241, 0.98) 0,
-    rgba(99, 102, 241, 0.98) calc(var(--update-progress) * 1%),
-    rgba(129, 140, 248, 0.24) calc(var(--update-progress) * 1%),
-    rgba(129, 140, 248, 0.24) 100%
-  );
-  border-color: rgba(129, 140, 248, 0.48);
-}
-
-.update-btn:disabled {
-  cursor: wait;
-}
-
-.update-btn:disabled:not(.is-downloading) {
-  opacity: 0.62;
-}
-
-.update-btn.is-downloading {
-  color: #eef2ff;
-  border-color: rgba(165, 180, 252, 0.62);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-
-.update-btn.is-indeterminate {
-  background: linear-gradient(
-    105deg,
-    rgba(129, 140, 248, 0.12) 20%,
-    rgba(79, 70, 229, 0.9) 46%,
-    rgba(129, 140, 248, 0.12) 72%
-  ) 100% 0 / 220% 100%;
-  animation: update-button-scan 1.1s ease-in-out infinite;
-}
-
+/* 显式隐藏，后续按钮样式即使增加display也不会造成启动闪现。 */
+.update-btn[hidden] { display: none; }
+.today-btn:hover { background: rgba(129, 140, 248, 0.26); }
+.update-btn:disabled { cursor: default; opacity: 0.7; }
 .update-btn.is-ready {
   color: #ecfdf5;
   border-color: rgba(52, 211, 153, 0.62);
   background: rgba(5, 150, 105, 0.76);
   box-shadow: 0 0 14px rgba(16, 185, 129, 0.2);
 }
-
 .update-btn.is-ready:hover:not(:disabled) {
   background: rgba(5, 150, 105, 0.92);
   border-color: rgba(110, 231, 183, 0.78);
-}
-
-.update-btn.is-error {
-  color: #ffe4e6;
-  border-color: rgba(251, 113, 133, 0.62);
-  background: rgba(136, 19, 55, 0.76);
-}
-
-.update-btn.is-error:hover:not(:disabled) {
-  background: rgba(159, 18, 57, 0.9);
-  border-color: rgba(253, 164, 175, 0.82);
-}
-
-@keyframes update-button-scan {
-  to { background-position: -100% 0; }
 }
 
 .release-modal {

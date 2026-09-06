@@ -4,19 +4,18 @@
  * 更新功能的界面控制器。
  *
  * Electron 能力只通过 preload 暴露的 appUpdates 接口使用。此模块负责更新按钮、
- * 当前版本说明弹层，不参与日历渲染，便于独立维护更新流程。更新状态始终直接
- * 呈现在“检查更新”按钮中，避免遮挡日历。
+ * 当前版本说明弹层，不参与日历渲染。检查和下载由主进程后台完成，
+ * 只有安装包下载完成后才显示操作入口。
  *
- * 按钮可以理解为一个小型状态机：idle → checking → available/downloading →
- * downloaded → installing；任一步失败进入 error，点击后可以重试。主进程事件和
- * 手动检查结果可能乱序到达，因此这里还负责阻止状态和百分比倒退。
+ * 状态流为idle → available/downloading → downloaded → installing。下载失败
+ * 保持隐藏；安装失败由主进程恢复downloaded状态以便再次点击。实时事件和
+ * 启动快照可能乱序到达，因此较早的快照不能覆盖较新的状态。
  */
 (function exposeUpdateController(root) {
   function createUpdateController({ elements, getText }) {
-    let checking = false;
     let updateState = { phase: 'idle', version: '', percent: 0 };
     // 每次收到有效事件或开始新操作都递增。异步请求记住出发时的序号，返回时
-    // 若序号已变，就说明画面已有更新的信息，旧结果不能再修改按钮（包括 finally）。
+    // 若序号已变，就说明画面已有更新的信息，旧结果不能再修改按钮。
     let stateRevision = 0;
     let initialized = false;
 
@@ -43,60 +42,24 @@
       );
     }
 
+    /**
+     * 后台检查和下载不占用界面空间。只有安装包已经就绪才提供操作入口；
+     * 安装进行中保留禁用按钮，既反馈点击结果，也防止重复提交。
+     * hidden同时移除布局与键盘焦点，HTML也默认hidden以避免启动时闪现。
+     */
     function updateButton() {
       const text = getText();
-      const downloading = ['available', 'downloading'].includes(updateState.phase);
+      const ready = updateState.phase === 'downloaded';
       const installing = updateState.phase === 'installing';
-      const percent = Math.round(Math.min(100, Math.max(0, updateState.percent || 0)));
-      let buttonLabel = text.checkUpdates;
-      if (checking) buttonLabel = text.checkingUpdates;
-      else if (installing) buttonLabel = text.updating;
-      else if (updateState.phase === 'downloaded') {
-        buttonLabel = text.updateNow.replace('{version}', updateState.version);
-      } else if (updateState.phase === 'found') {
-        buttonLabel = text.updateFound.replace('{version}', updateState.version);
-      } else if (updateState.phase === 'up-to-date') buttonLabel = text.upToDate;
-      else if (updateState.phase === 'error') buttonLabel = text.updateCheckError;
-      else if (updateState.phase === 'downloading') {
-        buttonLabel = text.downloadingUpdate.replace('{percent}', percent);
-      } else if (updateState.phase === 'available') buttonLabel = text.preparingDownload;
-
-      elements.checkUpdate.disabled = checking || downloading || installing;
-      elements.checkUpdate.textContent = buttonLabel;
-      elements.checkUpdate.setAttribute('aria-label', buttonLabel);
-      elements.checkUpdate.title = buttonLabel;
-      elements.checkUpdate.setAttribute('aria-busy', String(checking || downloading || installing));
-      elements.checkUpdate.dataset.updatePhase = checking ? 'checking' : updateState.phase;
-      elements.checkUpdate.style.setProperty(
-        '--update-progress',
-        downloading || updateState.phase === 'downloaded' ? percent : 0
-      );
-      elements.checkUpdate.classList.toggle('is-downloading', downloading);
-      elements.checkUpdate.classList.toggle(
-        'is-indeterminate',
-        updateState.phase === 'available'
-      );
-      elements.checkUpdate.classList.toggle('is-ready', updateState.phase === 'downloaded');
-      elements.checkUpdate.classList.toggle('is-error', updateState.phase === 'error');
-
-      if (downloading) {
-        elements.checkUpdate.setAttribute('role', 'progressbar');
-        elements.checkUpdate.setAttribute('aria-valuemin', '0');
-        elements.checkUpdate.setAttribute('aria-valuemax', '100');
-        if (updateState.phase === 'downloading') {
-          elements.checkUpdate.setAttribute('aria-valuenow', String(percent));
-          elements.checkUpdate.setAttribute('aria-valuetext', buttonLabel);
-        } else {
-          elements.checkUpdate.removeAttribute('aria-valuenow');
-          elements.checkUpdate.setAttribute('aria-valuetext', text.preparingDownload);
-        }
-      } else {
-        elements.checkUpdate.removeAttribute('role');
-        elements.checkUpdate.removeAttribute('aria-valuemin');
-        elements.checkUpdate.removeAttribute('aria-valuemax');
-        elements.checkUpdate.removeAttribute('aria-valuenow');
-        elements.checkUpdate.removeAttribute('aria-valuetext');
-      }
+      const label = installing ? text.updating : text.updateNow.replace('{version}', updateState.version);
+      elements.installUpdate.hidden = !ready && !installing;
+      elements.installUpdate.disabled = !ready;
+      elements.installUpdate.textContent = ready || installing ? label : '';
+      elements.installUpdate.title = ready || installing ? label : '';
+      elements.installUpdate.setAttribute('aria-label', ready || installing ? label : '');
+      elements.installUpdate.setAttribute('aria-busy', String(installing));
+      elements.installUpdate.dataset.updatePhase = updateState.phase;
+      elements.installUpdate.classList.toggle('is-ready', ready);
     }
 
     function syncLanguage() {
@@ -118,11 +81,9 @@
       const version = String(status.version || updateState.version || '').trim();
       const sameVersion = !version || !updateState.version || version === updateState.version;
 
-      // 后台事件比手动检查的 IPC 返回更及时；一旦下载器开始工作，立刻展示真实
-      // 状态，避免按钮继续停在“正在检查”。乱序的旧事件也不能让进度倒退。
+      // 后台仍跟踪任务状态，用来判断何时允许安装；下载过程不显示进度或按钮。
       if (shouldIgnoreStaleStatus(status.phase, version)) return;
       stateRevision += 1;
-      checking = false;
 
       if (status.phase === 'available') {
         updateState = { phase: 'available', version, percent: 0 };
@@ -194,59 +155,23 @@
       }
     }
 
-    async function checkForUpdates() {
-      if (checking || ['available', 'downloading', 'installing'].includes(updateState.phase)) return;
+    /** 只安装已下载的包，不从按钮发起检查或下载。 */
+    async function installDownloadedUpdate() {
+      if (updateState.phase !== 'downloaded') return;
       const requestRevision = ++stateRevision;
-
-      if (updateState.phase === 'downloaded') {
-        updateState = { ...updateState, phase: 'installing' };
-        renderUpdateState();
-        try {
-          const result = await root.appUpdates.installUpdate();
-          if (requestRevision === stateRevision && result?.status !== 'installing') {
-            updateState = { ...updateState, phase: 'downloaded' };
-            renderUpdateState();
-          }
-        } catch (error) {
-          console.warn('安装更新失败：', error);
-          if (requestRevision === stateRevision) {
-            updateState = { ...updateState, phase: 'downloaded' };
-            renderUpdateState();
-          }
-        }
-        return;
-      }
-
-      checking = true;
-      updateState = { phase: 'checking', version: '', percent: 0 };
+      updateState = { ...updateState, phase: 'installing' };
       renderUpdateState();
-
       try {
-        const result = await root.appUpdates.checkForUpdates();
-        // 不只保护下载进度：较晚的“已是最新”、错误和 available 结论，都不能
-        // 覆盖本请求期间已经收到的事件或用户发起的新操作。
-        if (requestRevision !== stateRevision) return;
-        if (result?.status === 'available') {
-          const version = result.latestVersion || result.version;
-          updateState = {
-            phase: result.downloadStarted === false ? 'found' : 'available',
-            version,
-            percent: 0
-          };
-        } else if (result?.status === 'up-to-date') {
-          updateState = { phase: 'up-to-date', version: '', percent: 0 };
-        } else {
-          // IPC 返回结构异常时也必须结束“正在检查”状态，不能表现为没有反应。
-          updateState = { phase: 'error', version: '', percent: 0 };
+        const result = await root.appUpdates.installUpdate();
+        if (requestRevision === stateRevision && result?.status !== 'installing') {
+          updateState = { ...updateState, phase: 'downloaded' };
+          renderUpdateState();
         }
       } catch (error) {
-        console.warn('手动检查更新失败：', error);
+        console.warn('安装更新失败：', error);
+        // 实时恢复事件优先于IPC返回；没有新事件时，在本地恢复可重试入口。
         if (requestRevision === stateRevision) {
-          updateState = { phase: 'error', version: '', percent: 0 };
-        }
-      } finally {
-        if (requestRevision === stateRevision) {
-          checking = false;
+          updateState = { ...updateState, phase: 'downloaded' };
           renderUpdateState();
         }
       }
@@ -254,7 +179,7 @@
 
     function bindEvents() {
       elements.version.addEventListener('click', showCurrentRelease);
-      elements.checkUpdate.addEventListener('click', checkForUpdates);
+      elements.installUpdate.addEventListener('click', installDownloadedUpdate);
       elements.releaseClose.addEventListener('click', closeReleaseNotes);
       elements.releaseModal.addEventListener('click', (event) => {
         if (event.target === elements.releaseModal) closeReleaseNotes();
@@ -285,7 +210,7 @@
       syncLanguage();
       if (!root.appUpdates) {
         elements.version.hidden = true;
-        elements.checkUpdate.hidden = true;
+        elements.installUpdate.hidden = true;
         return;
       }
 

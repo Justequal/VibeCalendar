@@ -2,7 +2,7 @@
 
 前置：[异步服务](05-async.md)。按[main.js](../../src/main/main.js)创建窗口 → [preload.js](../../src/main/preload.js)暴露接口 → [update-controller.js](../../src/renderer/update-controller.js)使用接口的顺序阅读，再进入[updater.js](../../src/main/updater.js)。
 
-主进程管理系统能力，渲染进程管理网页。Preload只提供需要的操作，不把整个Node或IPC对象交给页面。一次请求使用invoke获得Promise结果，持续下载进度通过事件订阅到达。这两条通道可能乱序，更新控制器需拒绝过期状态，不能只看最后到达的消息。
+主进程管理系统能力，渲染进程管理网页。Preload只提供需要的操作，不把整个Node或IPC对象交给页面。安装请求使用invoke获得Promise结果，后台状态通过事件订阅到达。检查和下载期间隐藏入口，只有downloaded状态才显示可点击按钮；安装进行中显示禁用状态。这两条通道可能乱序，更新控制器需拒绝过期状态，不能只看最后到达的消息。
 
 运行 `npm run learn -- 05`，阅读[订阅实验](../../lessons/05-events.mjs)。Set保存函数引用，取消函数通过闭包记住原监听器。实际Preload还包装了IPC事件对象，取消时必须使用包装后的同一个监听器。实验是同步内存通知，没有实现IPC的隔离与序列化。
 

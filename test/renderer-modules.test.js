@@ -49,23 +49,101 @@ function createElement() {
 
 const UPDATE_TEXT = Object.freeze({
   versionAnnouncement: '查看公告',
-  checkUpdates: '检查更新',
-  checkingUpdates: '正在检查',
-  preparingDownload: '准备下载…',
-  downloadingUpdate: '正在下载 {percent}%',
-  updateFound: '发现新版本 v{version}',
-  updateAvailable: '发现 v{version}',
-  updateDownloading: '正在下载 v{version}：{percent}%',
-  updateDownloaded: 'v{version} 下载完成',
   updateNow: '快速重启更新 V{version}',
   updating: '正在快速重启',
-  upToDate: '已是最新',
-  updateCheckError: '失败',
   releaseTitle: '更新公告',
   releaseLoading: '加载中',
   releaseNoNotes: '无说明',
   releaseLoadError: '公告失败',
   closeRelease: '关闭'
+});
+
+test('启动、后台检查和下载期间隐藏入口，点击不会发起手动检查', async () => {
+  let notify;
+  let checks = 0;
+  let installs = 0;
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    getUpdateState: async () => ({ phase: 'idle' }),
+    checkForUpdates: async () => { checks += 1; },
+    installUpdate: async () => { installs += 1; },
+    onUpdateStatus: listener => { notify = listener; }
+  });
+  await controller.initialize();
+  for (const phase of ['idle', 'available', 'downloading', 'error']) {
+    if (phase !== 'idle') notify({ phase, version: '2.4.0', percent: 42 });
+    controller.syncLanguage();
+    assert.equal(elements.installUpdate.hidden, true, phase);
+    assert.equal(elements.installUpdate.disabled, true, phase);
+    await elements.installUpdate.dispatch('click');
+  }
+  assert.equal(checks, 0);
+  assert.equal(installs, 0);
+});
+
+test('后台下载完成后才显示按钮，过期下载事件不隐藏安装入口', async () => {
+  let notify;
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    onUpdateStatus: listener => { notify = listener; },
+    installUpdate: async () => ({ status: 'installing' })
+  });
+  await controller.initialize();
+  notify({ phase: 'downloaded', version: '2.4.0' });
+  for (const phase of ['available', 'downloading']) notify({ phase, version: '2.4.0', percent: 12 });
+  assert.equal(elements.installUpdate.hidden, false);
+  assert.equal(elements.installUpdate.textContent, '快速重启更新 V2.4.0');
+  assert.equal(elements.installUpdate.disabled, false);
+  await elements.installUpdate.dispatch('click');
+  assert.equal(elements.installUpdate.hidden, false);
+  assert.equal(elements.installUpdate.disabled, true);
+  assert.equal(elements.installUpdate.getAttribute('aria-busy'), 'true');
+});
+
+test('迟到的启动快照不能隐藏已下载完成的按钮', async () => {
+  const snapshot = deferred();
+  let notify;
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    getUpdateState: () => snapshot.promise,
+    onUpdateStatus: listener => { notify = listener; }
+  });
+  const initialization = controller.initialize();
+  notify({ phase: 'downloaded', version: '2.4.0' });
+  snapshot.resolve({ phase: 'downloading', version: '2.4.0', percent: 20 });
+  await initialization;
+  assert.equal(elements.installUpdate.hidden, false);
+  assert.equal(elements.installUpdate.dataset.updatePhase, 'downloaded');
+});
+
+test('安装IPC拒绝时恢复已下载按钮以便重试', async () => {
+  const { controller, elements } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    getUpdateState: async () => ({ phase: 'downloaded', version: '2.4.0' }),
+    installUpdate: async () => { throw new Error('IPC disconnected'); }
+  });
+  await controller.initialize();
+  await elements.installUpdate.dispatch('click');
+  assert.equal(elements.installUpdate.hidden, false);
+  assert.equal(elements.installUpdate.disabled, false);
+  assert.equal(elements.installUpdate.dataset.updatePhase, 'downloaded');
+});
+
+test('版本公告仍可打开和关闭，初始化不会重复订阅', async () => {
+  let subscriptions = 0;
+  const { controller, elements, documentListeners } = createUpdateSubject({
+    getVersion: async () => '2.3.4',
+    getCurrentRelease: async () => ({ version: '2.3.4', title: 'VibeCalendar v2.3.4', notes: '**更快**' }),
+    onUpdateStatus: () => { subscriptions += 1; }
+  });
+  await controller.initialize();
+  await controller.initialize();
+  assert.equal(subscriptions, 1);
+  await elements.version.dispatch('click');
+  assert.equal(elements.releaseNotes.textContent, '更快');
+  assert.equal(elements.releaseModal.hidden, false);
+  documentListeners.get('keydown')({ key: 'Escape' });
+  assert.equal(elements.releaseModal.hidden, true);
 });
 
 function createUpdateSubject(appUpdates) {
@@ -75,7 +153,7 @@ function createUpdateSubject(appUpdates) {
     addEventListener: (type, listener) => documentListeners.set(type, listener)
   };
   const elements = Object.fromEntries([
-    'version', 'checkUpdate', 'releaseModal', 'releaseTitle', 'releaseVersion',
+    'version', 'installUpdate', 'releaseModal', 'releaseTitle', 'releaseVersion',
     'releaseNotes', 'releaseClose'
   ].map((name) => [name, createElement()]));
   elements.releaseModal.hidden = true;
@@ -104,81 +182,6 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-test('下载失败事件不会被迟到的发现新版结果覆盖，按钮保持可重试', async () => {
-  const pending = deferred();
-  let notify;
-  const { controller, elements } = createUpdateSubject({
-    getVersion: async () => '2.3.4',
-    checkForUpdates: () => pending.promise,
-    onUpdateStatus: (listener) => { notify = listener; }
-  });
-  await controller.initialize();
-  const action = elements.checkUpdate.dispatch('click');
-  notify({ phase: 'error' });
-  pending.resolve({ status: 'available', latestVersion: '2.4.0' });
-  await action;
-  assert.equal(elements.checkUpdate.textContent, '失败');
-  assert.equal(elements.checkUpdate.disabled, false);
-});
-
-for (const outcome of ['up-to-date', 'error', 'reject']) {
-  test(`下载完成后迟到的 ${outcome} 检查结果不覆盖重启入口`, async () => {
-    const pending = deferred();
-    let notify;
-    const { controller, elements } = createUpdateSubject({
-      getVersion: async () => '2.3.4',
-      checkForUpdates: () => pending.promise,
-      onUpdateStatus: (listener) => { notify = listener; }
-    });
-    await controller.initialize();
-    const action = elements.checkUpdate.dispatch('click');
-    notify({ phase: 'downloaded', version: '2.4.0' });
-    if (outcome === 'reject') pending.reject(new Error('late IPC failure'));
-    else pending.resolve({ status: outcome });
-    await action;
-    assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
-    assert.equal(elements.checkUpdate.disabled, false);
-  });
-}
-
-test('上一次检查的 finally 不会解除新检查的忙碌状态', async () => {
-  const first = deferred();
-  const second = deferred();
-  let count = 0;
-  let notify;
-  const { controller, elements } = createUpdateSubject({
-    getVersion: async () => '2.3.4',
-    checkForUpdates: () => (++count === 1 ? first.promise : second.promise),
-    onUpdateStatus: (listener) => { notify = listener; }
-  });
-  await controller.initialize();
-  const firstAction = elements.checkUpdate.dispatch('click');
-  notify({ phase: 'error' });
-  const secondAction = elements.checkUpdate.dispatch('click');
-  first.resolve({ status: 'up-to-date' });
-  await firstAction;
-  assert.equal(elements.checkUpdate.textContent, '正在检查');
-  assert.equal(elements.checkUpdate.disabled, true);
-  second.resolve({ status: 'up-to-date' });
-  await secondAction;
-  assert.equal(elements.checkUpdate.textContent, '已是最新');
-});
-
-test('旧启动快照不能覆盖期间收到的下载进度', async () => {
-  const snapshot = deferred();
-  let notify;
-  const { controller, elements } = createUpdateSubject({
-    getVersion: async () => '2.3.4',
-    getUpdateState: () => snapshot.promise,
-    onUpdateStatus: (listener) => { notify = listener; }
-  });
-  const initialization = controller.initialize();
-  notify({ phase: 'downloading', version: '2.4.0', percent: 61 });
-  snapshot.resolve({ phase: 'error' });
-  await initialization;
-  assert.equal(elements.checkUpdate.textContent, '正在下载 61%');
-});
-
 test('版本读取失败也能恢复安装状态，安装错误事件恢复重试入口', async () => {
   let notify;
   const { controller, elements } = createUpdateSubject({
@@ -187,10 +190,10 @@ test('版本读取失败也能恢复安装状态，安装错误事件恢复重�
     onUpdateStatus: (listener) => { notify = listener; }
   });
   await controller.initialize();
-  assert.equal(elements.checkUpdate.textContent, '正在快速重启');
+  assert.equal(elements.installUpdate.textContent, '正在快速重启');
   notify({ phase: 'downloaded', version: '2.4.0' });
-  assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
-  assert.equal(elements.checkUpdate.disabled, false);
+  assert.equal(elements.installUpdate.textContent, '快速重启更新 V2.4.0');
+  assert.equal(elements.installUpdate.disabled, false);
 });
 
 test('安装恢复事件优先于迟到的 installing 返回，忙碌阶段不重复提交', async () => {
@@ -204,14 +207,14 @@ test('安装恢复事件优先于迟到的 installing 返回，忙碌阶段不�
     onUpdateStatus: (listener) => { notify = listener; }
   });
   await controller.initialize();
-  const action = elements.checkUpdate.dispatch('click');
-  await elements.checkUpdate.dispatch('click');
+  const action = elements.installUpdate.dispatch('click');
+  await elements.installUpdate.dispatch('click');
   assert.equal(installCount, 1);
   notify({ phase: 'downloaded', version: '2.4.0' });
   pending.resolve({ status: 'installing' });
   await action;
-  assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
-  assert.equal(elements.checkUpdate.disabled, false);
+  assert.equal(elements.installUpdate.textContent, '快速重启更新 V2.4.0');
+  assert.equal(elements.installUpdate.disabled, false);
 });
 
 test('中英文词典拥有一致的顶层键，避免切换语言后出现空文案', () => {
@@ -232,169 +235,12 @@ test('中英文词典拥有一致的顶层键，避免切换语言后出现空�
   });
 });
 
-test('更新界面控制器显示真实版本、公告并反馈手动检查结果', async () => {
-  const { controller, document, documentListeners, elements } = createUpdateSubject({
-    getVersion: async () => '2.3.4',
-    getCurrentRelease: async () => ({ version: '2.3.4', title: 'VibeCalendar v2.3.4', notes: '**更快**' }),
-    checkForUpdates: async () => ({
-      status: 'available', latestVersion: '2.4.0', downloadStarted: true
-    })
-  });
-
-  await controller.initialize();
-  assert.equal(elements.version.textContent, 'v2.3.4');
-
-  await elements.version.dispatch('click');
-  assert.equal(elements.releaseModal.hidden, false);
-  assert.equal(elements.releaseVersion.textContent, 'VibeCalendar v2.3.4');
-  assert.equal(elements.releaseNotes.textContent, '更快');
-
-  await elements.checkUpdate.dispatch('click');
-  assert.equal(elements.checkUpdate.disabled, true);
-  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '准备下载…');
-  assert.equal(elements.checkUpdate.classList.contains('is-indeterminate'), true);
-
-  documentListeners.get('keydown')({ key: 'Escape' });
-  assert.equal(elements.releaseModal.hidden, true);
-});
-
 test('静态网页预览会隐藏 Electron 专属的更新入口', async () => {
   const { controller, elements } = createUpdateSubject(undefined);
 
   await controller.initialize();
   assert.equal(elements.version.hidden, true);
-  assert.equal(elements.checkUpdate.hidden, true);
-});
-
-test('开发版发现新版时给出结论并恢复检查按钮', async () => {
-  const { controller, elements } = createUpdateSubject({
-    getVersion: async () => '2.3.4',
-    getCurrentRelease: async () => ({ version: '2.3.4', notes: '说明' }),
-    checkForUpdates: async () => ({
-      status: 'available',
-      latestVersion: '2.4.0',
-      downloadStarted: false
-    })
-  });
-
-  await controller.initialize();
-  await elements.checkUpdate.dispatch('click');
-  assert.equal(elements.checkUpdate.textContent, '发现新版本 v2.4.0');
-  assert.equal(elements.checkUpdate.disabled, false);
-});
-
-test('公告和检查更新失败时显示可恢复错误状态', async () => {
-  const { controller, elements } = createUpdateSubject({
-    getVersion: async () => '2.3.4',
-    getCurrentRelease: async () => { throw new Error('missing notes'); },
-    checkForUpdates: async () => ({ status: 'error' })
-  });
-
-  await controller.initialize();
-  await elements.version.dispatch('click');
-  assert.equal(elements.releaseNotes.textContent, '公告失败');
-
-  await elements.checkUpdate.dispatch('click');
-  assert.equal(elements.checkUpdate.textContent, '失败');
-  assert.equal(elements.checkUpdate.classList.contains('is-error'), true);
-  assert.equal(elements.checkUpdate.disabled, false);
-});
-
-test('手动检查立即显示进度，异常返回也不会表现为无反应', async () => {
-  let finishCheck;
-  const pendingCheck = new Promise((resolve) => {
-    finishCheck = resolve;
-  });
-  const { controller, elements } = createUpdateSubject({
-    getVersion: async () => '2.3.4',
-    getCurrentRelease: async () => ({ version: '2.3.4', notes: '说明' }),
-    checkForUpdates: () => pendingCheck
-  });
-
-  await controller.initialize();
-  const checkAction = elements.checkUpdate.dispatch('click');
-  await Promise.resolve();
-  assert.equal(elements.checkUpdate.textContent, '正在检查');
-  assert.equal(elements.checkUpdate.disabled, true);
-
-  finishCheck({ status: 'unexpected' });
-  await checkAction;
-  assert.equal(elements.checkUpdate.textContent, '失败');
-  assert.equal(elements.checkUpdate.classList.contains('is-error'), true);
-  assert.equal(elements.checkUpdate.disabled, false);
-});
-
-test('更新下载事件驱动按钮背景进度、重启更新和失败状态', async () => {
-  let updateListener;
-  const { controller, elements } = createUpdateSubject({
-    getVersion: async () => '2.3.4',
-    getCurrentRelease: async () => ({ version: '2.3.4', notes: '说明' }),
-    checkForUpdates: async () => ({ status: 'up-to-date' }),
-    installUpdate: async () => ({ status: 'installing' }),
-    onUpdateStatus: (listener) => {
-      updateListener = listener;
-      return () => {};
-    }
-  });
-
-  await controller.initialize();
-  updateListener({ phase: 'available', version: '2.4.0' });
-  assert.equal(elements.checkUpdate.disabled, true);
-  assert.equal(elements.checkUpdate.classList.contains('is-indeterminate'), true);
-  assert.equal(elements.checkUpdate.getAttribute('role'), 'progressbar');
-
-  updateListener({ phase: 'downloading', version: '2.4.0', percent: 42.4 });
-  assert.equal(elements.checkUpdate.textContent, '正在下载 42%');
-  assert.equal(elements.checkUpdate.style.getPropertyValue('--update-progress'), 42);
-  assert.equal(elements.checkUpdate.getAttribute('aria-valuenow'), '42');
-  assert.equal(elements.checkUpdate.getAttribute('aria-valuetext'), '正在下载 42%');
-
-  // 下载器的瞬时回退不会让用户看到进度条倒退。
-  updateListener({ phase: 'downloading', version: '2.4.0', percent: 37 });
-  assert.equal(elements.checkUpdate.textContent, '正在下载 42%');
-
-  updateListener({ phase: 'downloaded', version: '2.4.0' });
-  assert.equal(elements.checkUpdate.style.getPropertyValue('--update-progress'), 100);
-  assert.equal(elements.checkUpdate.disabled, false);
-  assert.equal(elements.checkUpdate.getAttribute('aria-label'), '快速重启更新 V2.4.0');
-  assert.equal(elements.checkUpdate.classList.contains('is-ready'), true);
-
-  // 同一检查的迟到事件不能覆盖已经完成下载的可安装状态。
-  updateListener({ phase: 'available', version: '2.4.0' });
-  assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
-
-  await elements.checkUpdate.dispatch('click');
-  assert.equal(elements.checkUpdate.textContent, '正在快速重启');
-  assert.equal(elements.checkUpdate.disabled, true);
-
-  updateListener({ phase: 'error' });
-  assert.equal(elements.checkUpdate.textContent, '失败');
-  assert.equal(elements.checkUpdate.classList.contains('is-error'), true);
-});
-
-test('下载事件立即取代检查状态，较晚返回的检查结果不会覆盖进度', async () => {
-  let finishCheck;
-  let updateListener;
-  const pendingCheck = new Promise((resolve) => { finishCheck = resolve; });
-  const { controller, elements } = createUpdateSubject({
-    getVersion: async () => '2.3.4',
-    getUpdateState: async () => ({ phase: 'idle' }),
-    checkForUpdates: () => pendingCheck,
-    onUpdateStatus: (listener) => {
-      updateListener = listener;
-      return () => {};
-    }
-  });
-
-  await controller.initialize();
-  const checkAction = elements.checkUpdate.dispatch('click');
-  await Promise.resolve();
-  updateListener({ phase: 'downloading', version: '2.4.0', percent: 28 });
-  assert.equal(elements.checkUpdate.textContent, '正在下载 28%');
-
-  finishCheck({ status: 'available', latestVersion: '2.4.0', downloadStarted: true });
-  await checkAction;
-  assert.equal(elements.checkUpdate.textContent, '正在下载 28%');
+  assert.equal(elements.installUpdate.hidden, true);
 });
 
 test('版本说明弹层将 Tab 焦点限制在关闭按钮和公告正文中', async () => {
@@ -432,9 +278,9 @@ test('窗口加载后恢复主进程已经下载完成的更新状态', async ()
   });
 
   await controller.initialize();
-  assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
-  assert.equal(elements.checkUpdate.disabled, false);
-  assert.equal(elements.checkUpdate.classList.contains('is-ready'), true);
+  assert.equal(elements.installUpdate.textContent, '快速重启更新 V2.4.0');
+  assert.equal(elements.installUpdate.disabled, false);
+  assert.equal(elements.installUpdate.classList.contains('is-ready'), true);
 });
 
 test('快速重启未被主进程接管时恢复可点击更新按钮', async () => {
@@ -451,8 +297,8 @@ test('快速重启未被主进程接管时恢复可点击更新按钮', async ()
   });
 
   await controller.initialize();
-  await elements.checkUpdate.dispatch('click');
-  assert.equal(elements.checkUpdate.textContent, '快速重启更新 V2.4.0');
-  assert.equal(elements.checkUpdate.disabled, false);
+  await elements.installUpdate.dispatch('click');
+  assert.equal(elements.installUpdate.textContent, '快速重启更新 V2.4.0');
+  assert.equal(elements.installUpdate.disabled, false);
   assert.equal(typeof updateListener, 'function');
 });

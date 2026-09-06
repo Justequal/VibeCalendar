@@ -37,7 +37,7 @@
     toggleWeek: document.getElementById('toggle-week-btn'),
     languageToggle: document.getElementById('language-toggle-btn'),
     version: document.getElementById('version-btn'),
-    checkUpdate: document.getElementById('check-update-btn'),
+    installUpdate: document.getElementById('install-update-btn'),
     releaseModal: document.getElementById('release-modal'),
     releaseTitle: document.getElementById('release-title'),
     releaseVersion: document.getElementById('release-version'),

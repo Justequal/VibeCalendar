@@ -42,23 +42,8 @@ async function run() {
     notes: '**修复**\n\n- 手动检查更新会立即显示结果'
   }));
   ipcMain.handle('updates:get-state', () => ({ phase: 'idle' }));
-  ipcMain.handle('updates:check', (event) => {
-    setTimeout(() => {
-      if (!event.sender.isDestroyed()) {
-        event.sender.send('updates:status', {
-          phase: 'downloading',
-          version: '9.9.9',
-          percent: 42.4
-        });
-      }
-    }, 5);
-    return {
-      status: 'available',
-      currentVersion,
-      latestVersion: '9.9.9',
-      downloadStarted: true
-    };
-  });
+  let manualChecks = 0;
+  ipcMain.handle('updates:check', () => { manualChecks += 1; return { status: 'up-to-date' }; });
   ipcMain.handle('updates:install', () => ({ status: 'installing', version: '9.9.9' }));
 
   const rendererEntry = path.join(appRoot, 'src/renderer/index.html');
@@ -95,7 +80,7 @@ async function run() {
         cellCount: document.querySelectorAll('.day').length,
         version: document.getElementById('version-btn').textContent,
         versionHidden: document.getElementById('version-btn').hidden,
-        updateHidden: document.getElementById('check-update-btn').hidden,
+        updateHidden: document.getElementById('install-update-btn').hidden,
         clock: document.getElementById('clock').textContent,
         todayCount: document.querySelectorAll('.day[aria-current="date"]').length,
         pageFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth
@@ -108,7 +93,7 @@ async function run() {
     assert.equal(initial.cellCount, 42);
     assert.equal(initial.version, `v${currentVersion}`);
     assert.equal(initial.versionHidden, false);
-    assert.equal(initial.updateHidden, false);
+    assert.equal(initial.updateHidden, true);
     assert.match(initial.clock, /^\d{2}:\d{2}:\d{2}$/);
     assert.equal(initial.todayCount, 1);
     assert.equal(initial.pageFits, true);
@@ -143,14 +128,14 @@ async function run() {
         language: document.documentElement.lang,
         weekday: document.querySelector('.weekdays > div')?.textContent,
         today: document.getElementById('go-today-btn').textContent,
-        checkUpdate: document.getElementById('check-update-btn').textContent
+        installUpdate: document.getElementById('install-update-btn').textContent
       };
     `);
     assert.deepEqual(english, {
       language: 'en',
       weekday: 'Mon',
       today: 'Go to Today',
-      checkUpdate: 'Check for Updates'
+      installUpdate: ''
     });
 
     const sundayFirst = await invoke(window, `
@@ -228,40 +213,36 @@ async function run() {
 
     await invoke(window, `
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      document.getElementById('check-update-btn').click();
     `);
-    await waitFor(window, `document.getElementById('check-update-btn').dataset.updatePhase === 'downloading'`);
+    // 模拟主进程后台下载事件，不通过页面点击或检查IPC触发。
+    window.webContents.send('updates:status', { phase: 'downloading', version: '9.9.9', percent: 42.4 });
+    await waitFor(window, `document.getElementById('install-update-btn').dataset.updatePhase === 'downloading'`);
     const updateAndClose = await invoke(window, `
       return {
         modalHidden: document.getElementById('release-modal').hidden,
         focused: document.activeElement?.id,
-        progress: document.getElementById('check-update-btn').style.getPropertyValue('--update-progress'),
-        progressNow: document.getElementById('check-update-btn').getAttribute('aria-valuenow'),
-        progressText: document.getElementById('check-update-btn').getAttribute('aria-valuetext'),
-        checkDisabled: document.getElementById('check-update-btn').disabled,
-        checkText: document.getElementById('check-update-btn').textContent
+        hidden: document.getElementById('install-update-btn').hidden,
+        display: getComputedStyle(document.getElementById('install-update-btn')).display
       };
     `);
     assert.equal(updateAndClose.modalHidden, true);
     assert.equal(updateAndClose.focused, 'version-btn');
-    assert.equal(updateAndClose.progress, '42');
-    assert.equal(updateAndClose.progressNow, '42');
-    assert.equal(updateAndClose.progressText, 'Downloading 42%');
-    assert.equal(updateAndClose.checkDisabled, true);
-    assert.equal(updateAndClose.checkText, 'Downloading 42%');
+    assert.equal(updateAndClose.hidden, true);
+    assert.equal(updateAndClose.display, 'none');
+    assert.equal(manualChecks, 0);
 
     window.webContents.send('updates:status', {
       phase: 'downloaded', version: '9.9.9', percent: 100
     });
-    await waitFor(window, `document.getElementById('check-update-btn').dataset.updatePhase === 'downloaded'`);
+    await waitFor(window, `document.getElementById('install-update-btn').dataset.updatePhase === 'downloaded'`);
     const downloaded = await invoke(window, `
-      const button = document.getElementById('check-update-btn');
-      const before = { text: button.textContent, disabled: button.disabled };
+      const button = document.getElementById('install-update-btn');
+      const before = { text: button.textContent, disabled: button.disabled, hidden: button.hidden, visible: button.getBoundingClientRect().width > 0 };
       button.click();
       await new Promise((resolve) => setTimeout(resolve, 5));
       return { before, after: button.textContent };
     `);
-    assert.deepEqual(downloaded.before, { text: 'Quick restart to update V9.9.9', disabled: false });
+    assert.deepEqual(downloaded.before, { text: 'Quick restart to update V9.9.9', disabled: false, hidden: false, visible: true });
     assert.equal(downloaded.after, 'Restarting to update…');
 
     // 通过真实 Preload/IPC 发送安装失败后的恢复状态；不启动或替换本机应用。
@@ -270,7 +251,7 @@ async function run() {
     });
     const recovered = await invoke(window, `
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      const button = document.getElementById('check-update-btn');
+      const button = document.getElementById('install-update-btn');
       return { text: button.textContent, disabled: button.disabled, busy: button.getAttribute('aria-busy') };
     `);
     assert.deepEqual(recovered, {

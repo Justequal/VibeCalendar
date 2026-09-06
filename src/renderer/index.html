@@ -49,7 +49,7 @@
       <!-- 具体的日期方块都会被 renderer.js 渲染后插入这里 -->
     </div>
 
-    <!-- 底部功能栏：展示时钟与版本号（点击可打开当前版本说明），以及手动检查更新按钮与回到今天按钮 -->
+    <!-- 底部功能栏：展示时钟与版本号（点击可打开当前版本说明），以及下载完成后的更新按钮与回到今天按钮 -->
     <div class="footer">
       <div class="footer-info">
         <time id="clock" class="clock">00:00:00</time>
@@ -57,8 +57,8 @@
         <button id="version-btn" class="version-btn" title="查看当前版本说明">v…</button>
       </div>
       <div class="footer-actions">
-        <!-- 手动检查更新按钮 -->
-        <button id="check-update-btn" class="update-btn" aria-live="polite" aria-atomic="true">检查更新</button>
+        <!-- 默认隐藏；仅收到下载完成事件后显示，点击安装已下载的更新。 -->
+        <button id="install-update-btn" class="update-btn" aria-live="polite" aria-atomic="true" hidden disabled></button>
         <button id="go-today-btn" class="today-btn" title="快捷键 T">回到今天</button>
       </div>
     </div>
