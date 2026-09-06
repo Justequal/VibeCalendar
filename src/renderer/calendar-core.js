@@ -5,7 +5,8 @@
  * 也可以直接使用 Node.js 内置测试运行器验证。
  */
 (function exposeCalendarCore(root, factory) {
-  const api = factory();
+  const api = factory(root?.VibeFestivalDates || (typeof module !== 'undefined' && module.exports
+    ? require('./festival-dates') : {}));
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
@@ -14,10 +15,23 @@
   if (root) {
     root.CalendarCore = api;
   }
-})(typeof window !== 'undefined' ? window : globalThis, () => {
+})(typeof window !== 'undefined' ? window : globalThis, (festivalDates) => {
   const DAYS_PER_WEEK = 7;
   const CALENDAR_ROW_COUNT = 6;
   const CALENDAR_CELL_COUNT = DAYS_PER_WEEK * CALENDAR_ROW_COUNT;
+  const MIN_YEAR = 1;
+  const MAX_YEAR = 9999;
+
+  function createDate(year, month, day = 1, hour = 0) {
+    const result = new Date(0);
+    result.setHours(hour, 0, 0, 0);
+    result.setFullYear(year, month, day);
+    return result;
+  }
+
+  function isSupportedYear(year) {
+    return Number.isInteger(year) && year >= MIN_YEAR && year <= MAX_YEAR;
+  }
 
   const WEEKDAYS = Object.freeze({
     en: Object.freeze({
@@ -35,33 +49,9 @@
     'July', 'August', 'September', 'October', 'November', 'December'
   ]);
 
-  const LUNAR_FESTIVAL_KEYS = new Set([
-    'springFestival',
-    'dragonBoat',
-    'midAutumn'
-  ]);
-
-  // Intl.DateTimeFormat 的构造成本明显高于一次日期格式化，因此按模块复用。
-  // 若运行环境不支持中国农历，节假日仍可显示，只是不标记农历节日本日。
-  let chineseLunarFormatter;
-
-  function getChineseLunarFormatter() {
-    if (chineseLunarFormatter !== undefined) return chineseLunarFormatter;
-
-    try {
-      chineseLunarFormatter = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', {
-        month: 'numeric',
-        day: 'numeric'
-      });
-    } catch (_error) {
-      chineseLunarFormatter = null;
-    }
-    return chineseLunarFormatter;
-  }
-
   /** 将任意日期规范到所在月份的第一天。 */
   function startOfMonth(date) {
-    return new Date(date.getFullYear(), date.getMonth(), 1);
+    return createDate(date.getFullYear(), date.getMonth(), 1);
   }
 
   /**
@@ -70,20 +60,26 @@
    * 先把日期设为 1 日，避免 1 月 31 日加一个月后溢出到 3 月的问题。
    */
   function addMonths(date, offset) {
-    const normalized = startOfMonth(date);
-    normalized.setMonth(normalized.getMonth() + offset);
-    return normalized;
+    if (!Number.isFinite(offset)) throw new RangeError('Invalid month offset');
+    const monthIndex = Math.min(MAX_YEAR * 12 + 11, Math.max(MIN_YEAR * 12,
+      date.getFullYear() * 12 + date.getMonth() + Math.trunc(offset)));
+    return createDate(Math.floor(monthIndex / 12), monthIndex % 12);
   }
 
   /** 按自然日移动，避免直接修改调用方传入的 Date。 */
   function addDays(date, offset) {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + offset);
+    if (!Number.isFinite(offset)) throw new RangeError('Invalid day offset');
+    const boundedOffset = Math.min(366 * MAX_YEAR, Math.max(-366 * MAX_YEAR, Math.trunc(offset)));
+    const result = createDate(date.getFullYear(), date.getMonth(), date.getDate() + boundedOffset);
+    if (result.getFullYear() < MIN_YEAR) return createDate(MIN_YEAR, 0, 1);
+    if (result.getFullYear() > MAX_YEAR) return createDate(MAX_YEAR, 11, 31);
+    return result;
   }
 
   /** 返回用于节假日查询的 YYYY-MM-DD 键。 */
   function toDateKey(year, month, day) {
     return [
-      year,
+      String(year).padStart(4, '0'),
       String(month + 1).padStart(2, '0'),
       String(day).padStart(2, '0')
     ].join('-');
@@ -100,7 +96,7 @@
    * 每个单元格都携带自己的真实年月，跨年时无需在渲染层做特殊判断。
    */
   function buildMonthCells(year, month, startOnMonday = false) {
-    return buildWeekWindowCells(new Date(year, month, 1), startOnMonday);
+    return buildWeekWindowCells(createDate(year, month, 1), startOnMonday);
   }
 
   /**
@@ -113,7 +109,7 @@
     const firstDayOfWeek = anchorDate.getDay();
     const leadingCount = getLeadingCellCount(firstDayOfWeek, startOnMonday);
     // 使用正午作为内部游标，避免部分时区在夏令时切换日午夜附近出现跳日。
-    const cursor = new Date(
+    const cursor = createDate(
       year,
       month,
       anchorDate.getDate() - leadingCount,
@@ -171,44 +167,15 @@
     if (holidayKey === 'labourDay' && monthDay === '05-01') return holidayKey;
     if (holidayKey === 'nationalDay' && monthDay === '10-01') return holidayKey;
 
-    if (holidayKey === 'qingming') {
-      const shortYear = year % 100;
-      const centuryConstant = year >= 2000 ? 4.81 : 5.59;
-      const qingmingDay = Math.floor(shortYear * 0.2422 + centuryConstant)
-        - Math.floor(shortYear / 4);
-      if (month === 3 && day === qingmingDay) return 'qingming';
-    }
-
-    if (!LUNAR_FESTIVAL_KEYS.has(holidayKey)) {
-      return null;
-    }
-
-    const formatter = getChineseLunarFormatter();
-    if (!formatter) return null;
-
-    let lunarParts;
-    try {
-      lunarParts = formatter.formatToParts(new Date(year, month, day, 12));
-    } catch (_error) {
-      return null;
-    }
-
-    const lunarMonth = Number(lunarParts.find((part) => part.type === 'month')?.value);
-    const lunarDay = Number(lunarParts.find((part) => part.type === 'day')?.value);
-
-    if (holidayKey === 'springFestival' && lunarMonth === 1 && lunarDay === 1) {
-      return 'springFestival';
-    }
-    if (holidayKey === 'dragonBoat' && lunarMonth === 5 && lunarDay === 5) {
-      return 'dragonBoat';
-    }
-    if (holidayKey === 'midAutumn' && lunarMonth === 8 && lunarDay === 15) {
-      return 'midAutumn';
-    }
-    return null;
+    // 仅使用天文台已发布的1901–2100历表，不在范围外外推农历或节气。
+    return festivalDates[year]?.[holidayKey] === monthDay ? holidayKey : null;
   }
 
   return Object.freeze({
+    MIN_YEAR,
+    MAX_YEAR,
+    createDate,
+    isSupportedYear,
     addDays,
     addMonths,
     buildMonthCells,

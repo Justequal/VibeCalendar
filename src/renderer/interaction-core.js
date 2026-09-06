@@ -28,7 +28,7 @@
   function toRowDelta(deltaY, deltaMode = DOM_DELTA_PIXEL) {
     if (!Number.isFinite(deltaY)) return 0;
     if (deltaMode === DOM_DELTA_LINE) return deltaY / LINES_PER_ROW;
-    if (deltaMode === DOM_DELTA_PAGE) return deltaY * ROWS_PER_PAGE;
+    if (deltaMode === DOM_DELTA_PAGE) return Math.max(-1_000_000, Math.min(1_000_000, deltaY)) * ROWS_PER_PAGE;
     return deltaY / PIXELS_PER_ROW;
   }
 

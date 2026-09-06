@@ -93,8 +93,11 @@
 
   const updateController = window.createUpdateController({ elements, getText });
   const accessibleDateFormatters = new Map();
+  const emptyHolidays = Object.freeze({});
   let renderedControlsLanguage;
   let renderedWeekdayKey;
+  let renderedGrid;
+  let clockDateKey;
 
   function getAccessibleDateFormatter() {
     if (!accessibleDateFormatters.has(state.language)) {
@@ -179,6 +182,13 @@
    */
   function createDayElement(cell, today, dateFormatter, holidaysByYear) {
     const dateKey = CalendarCore.toDateKey(cell.year, cell.month, cell.day);
+    if (!CalendarCore.isSupportedYear(cell.year)) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'day off-month';
+      placeholder.setAttribute('role', 'gridcell');
+      placeholder.setAttribute('aria-disabled', 'true');
+      return placeholder;
+    }
     const holidayData = holidaysByYear.get(cell.year)[dateKey];
     const isWeekend = cell.dayOfWeek === 0 || cell.dayOfWeek === 6;
     const isWorkDay = holidayData ? !holidayData.isHoliday : !isWeekend;
@@ -230,7 +240,7 @@
     if (isToday) dayElement.setAttribute('aria-current', 'date');
 
     const text = getText();
-    const accessibleDate = dateFormatter.format(new Date(cell.year, cell.month, cell.day));
+    const accessibleDate = dateFormatter.format(CalendarCore.createDate(cell.year, cell.month, cell.day, 12));
     const festivalLabel = holidayData?.festival
       ? text.festivals[holidayData.festival]
       : null;
@@ -262,7 +272,16 @@
     );
     const today = new Date();
     const holidaysByYear = new Map([...new Set(cells.map((cell) => cell.year))]
-      .map((visibleYear) => [visibleYear, window.holidayManager.getHolidays(visibleYear)]));
+      .map((visibleYear) => [visibleYear, CalendarCore.isSupportedYear(visibleYear)
+        ? window.holidayManager.getHolidays(visibleYear) : emptyHolidays]));
+    const renderKey = [
+      year, month, CalendarCore.toDateKey(cells[0].year, cells[0].month, cells[0].day),
+      state.language, state.startOnMonday,
+      CalendarCore.toDateKey(today.getFullYear(), today.getMonth(), today.getDate())
+    ].join(':');
+    if (renderedGrid?.key === renderKey && [...holidaysByYear].every(
+      ([visibleYear, data]) => renderedGrid.holidays.get(visibleYear) === data
+    )) return holidaysByYear;
     const dateFormatter = getAccessibleDateFormatter();
 
     elements.monthYear.textContent = CalendarCore.getMonthLabel(
@@ -282,28 +301,22 @@
       holidaysByYear
     )));
     elements.calendarGrid.replaceChildren(fragment);
-  }
-
-  function getVisibleYears() {
-    const cells = CalendarCore.buildWeekWindowCells(
-      state.visibleDate,
-      state.startOnMonday
-    );
-    return [...new Set(cells.map((cell) => cell.year))];
+    renderedGrid = { key: renderKey, holidays: holidaysByYear };
+    return holidaysByYear;
   }
 
   /**
    * 先同步绘制，再后台刷新节假日并重绘。
    * renderVersion 用于丢弃快速翻月过程中较早请求产生的过期渲染结果。
    */
-  async function renderCalendar() {
+  async function renderCalendar(options) {
     const version = ++state.renderVersion;
-    renderCalendarGrid();
+    const holidaysByYear = renderCalendarGrid();
 
     // 数据服务本身会降级，但这里仍使用 allSettled 隔离未知异常，确保新增提供方
     // 或浏览器存储故障永远不会形成未处理的 Promise 并影响日历交互。
-    await Promise.allSettled(getVisibleYears().map((year) => (
-      window.holidayManager.fetchHolidays(year)
+    await Promise.allSettled([...holidaysByYear.keys()].filter(CalendarCore.isSupportedYear).map((year) => (
+      window.holidayManager.fetchHolidays(year, options)
     )));
 
     if (version === state.renderVersion) {
@@ -318,16 +331,22 @@
   }
 
   function moveWeek(offset) {
-    state.visibleDate = CalendarCore.addDays(state.visibleDate, offset * 7);
+    state.visibleDate = CalendarCore.addDays(state.visibleDate, Math.max(-4_000_000, Math.min(4_000_000, offset * 7)));
     renderCalendar();
   }
 
   function updateClock() {
     const now = new Date();
-    elements.clock.textContent = now.toLocaleTimeString('en-US', {
-      hour12: false
-    });
+    // 固定 HH:mm:ss 无需每秒构造本地化格式器；直接读取本地时间也能跟随系统时区。
+    elements.clock.textContent = [now.getHours(), now.getMinutes(), now.getSeconds()]
+      .map((part) => String(part).padStart(2, '0')).join(':');
     elements.clock.dateTime = now.toISOString();
+    const dateKey = CalendarCore.toDateKey(now.getFullYear(), now.getMonth(), now.getDate());
+    if (clockDateKey !== undefined && clockDateKey !== dateKey) {
+      // 跨午夜或系统日期调整后更新今天标记，保留用户正在浏览的月份。
+      void renderCalendar();
+    }
+    clockDateKey = dateKey;
   }
 
   /** 每次按整秒边界重新调度，避免长期运行后 setInterval 累积漂移。 */
@@ -338,6 +357,15 @@
   }
 
   function bindEvents() {
+    const refreshOnReturn = () => {
+      updateClock();
+      void renderCalendar();
+    };
+    window.addEventListener('focus', refreshOnReturn);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) refreshOnReturn();
+    });
+    window.addEventListener('online', () => void renderCalendar({ retryFallback: true }));
     elements.toggleWeek.addEventListener('click', () => {
       state.startOnMonday = !state.startOnMonday;
       saveBooleanPreference(STORAGE_KEYS.startOnMonday, state.startOnMonday);
@@ -366,7 +394,7 @@
     let queuedWheelRows = 0;
     let wheelFrame = 0;
     elements.app.addEventListener('wheel', (event) => {
-      if (event.deltaY === 0 || updateController.isReleaseNotesOpen()) return;
+      if (event.ctrlKey || event.deltaY === 0 || updateController.isReleaseNotesOpen()) return;
 
       const wholeRows = wheelRows.push(event.deltaY, event.deltaMode);
       if (wholeRows === 0) return;
@@ -378,7 +406,7 @@
         const rows = queuedWheelRows;
         queuedWheelRows = 0;
         wheelFrame = 0;
-        if (rows !== 0) moveWeek(rows);
+        if (rows !== 0 && !updateController.isReleaseNotesOpen()) moveWeek(rows);
       });
     }, { passive: true });
 

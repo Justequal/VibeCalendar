@@ -43,7 +43,10 @@ jobs:
     - name: Verify source
       run: npm run verify
 
-    - name: Build release assets
+    - name: Verify Electron interface
+      run: npm run test:ui
+
+    - name: Package release assets
       run: npm run build -- --publish never
 
     - name: Extract maintained release notes

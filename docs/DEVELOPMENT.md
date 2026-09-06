@@ -113,6 +113,12 @@ npm run verify:full
 
 `npm test` 与 `test:ui` 不得依赖真实 GitHub 或节假日 API 的实时响应。网络、存储、时钟和 Electron 对象应使用注入或模拟，以保持离线和 CI 结果稳定；只有显式的 `test:update-network` 执行真实联网检查。
 
+界面测试使用独立的临时 Electron 配置目录和内存会话，并拦截 HTTP/HTTPS 请求。新增回归场景包括缓存翻月的实际 DOM 替换次数、跨月午夜、窗口恢复、迟到节假日数据及滚动/弹层竞态；更新进度通过等待明确状态断言。需要保存测试截图时，可以设置 `VIBE_SMOKE_SCREENSHOT` 为本机输出文件路径；截图中的版本更新状态来自测试固定响应。
+
+`VIBE_TEST_APP_ROOT` 可指定构建产物的 `resources/app.asar`，直接测试打包后的界面；`VIBE_TEST_SCALE` 可指定1、1.25、1.5等显示缩放。Windows构建和正式发布工作流会运行界面测试。
+
+`npm run test:holiday-network` 将实时2026年数据与国务院通知固定样本逐项核对；`npm run sync:festivals` 更新天文台200年日期表，下载源缓存在系统临时目录，失败后可重试。若要强制重新获取，使用一个新的临时目录运行同步任务。`npm run test:performance` 测量1000次缓存导航和30秒空闲资源，`VIBE_PERFORMANCE_REPORT` 可指定JSON输出路径。性能结果取决于设备和并行负载，不设跨设备的固定通过阈值。
+
 ## 6. 人工验证清单
 
 ### 日历与滚动
@@ -151,7 +157,7 @@ npm run verify:full
 
 1. **启动检查**：正式安装版调用 `electron-updater`；开发版直接跳过。
 2. **点击版本号**：读取安装包内 `CHANGELOG.md` 的当前版本段落，不访问网络。
-3. **手动检查**：所有 Electron 模式都先读取最新正式 Release 并比较版本，只返回“有新版 / 已是最新版 / 检查失败”；正式安装版确认有新版后立即返回结果，再让 `electron-updater` 自动下载并通过 `updates:status` 推送进度。
+3. **手动检查**：正式安装版由 `electron-updater` 直接读取更新清单，发现新版后启动下载并通过 `updates:status` 推送进度；开发版查询 GitHub 最新正式 Release，只比较版本，不下载或安装。
 
 GitHub API 不可用、请求超时或达到匿名访问限制时，手动检查可以失败，这是可恢复状态；当前版本说明仍可离线读取。不要在渲染层直接增加 GitHub 域名或关闭 CSP；远端请求应继续由主进程完成。
 

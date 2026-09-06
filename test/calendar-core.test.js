@@ -120,3 +120,34 @@ test('日期窗口跨越闰日时仍保持逐日连续', () => {
 test('toDateKey 对月份和日期补零', () => {
   assert.equal(CalendarCore.toDateKey(2026, 0, 5), '2026-01-05');
 });
+
+test('早期年份不被映射到1900年，导航停在1–9999年边界', () => {
+  const first = CalendarCore.createDate(1, 0, 1);
+  assert.equal(CalendarCore.startOfMonth(first).getFullYear(), 1);
+  assert.equal(CalendarCore.toDateKey(1, 0, 1), '0001-01-01');
+  assert.equal(CalendarCore.addDays(first, -100).getFullYear(), 1);
+  assert.equal(CalendarCore.addMonths(first, -100).getFullYear(), 1);
+  const last = CalendarCore.createDate(9999, 11, 31);
+  assert.equal(CalendarCore.addDays(last, Number.MAX_VALUE).getFullYear(), 9999);
+  assert.equal(CalendarCore.addMonths(last, Number.MAX_VALUE).getFullYear(), 9999);
+  for (const year of [1, 4, 99, 100, 400, 1900, 2000, 9999]) {
+    const cells = CalendarCore.buildMonthCells(year, 1, true);
+    assert.equal(cells.length, 42);
+    assert.equal(cells.filter(cell => cell.isCurrentMonth).length,
+      year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28);
+  }
+});
+
+test('节日本日使用官方历表，并在表外停止推算', () => {
+  const samples = [
+    [1903, 3, 6, '清明节', 'qingming'],
+    [2026, 3, 5, '清明节', 'qingming'],
+    [2026, 5, 19, '端午节', 'dragonBoat'],
+    [2026, 8, 25, '中秋节', 'midAutumn']
+  ];
+  for (const [year, month, day, name, expected] of samples) {
+    assert.equal(CalendarCore.getChineseFestivalKey(year, month, day, name), expected);
+    assert.equal(CalendarCore.getChineseFestivalKey(year, month, day + 1, name), null);
+  }
+  assert.equal(CalendarCore.getChineseFestivalKey(2101, 3, 5, '清明节'), null);
+});

@@ -31,6 +31,9 @@
   const REQUEST_TIMEOUT = 5000;
   const MAX_DAYS_PER_YEAR = 366;
   const MAX_MEMORY_CACHE_YEARS = 12;
+  const MAX_STORED_CACHE_YEARS = 24;
+  const MAX_ACTIVE_YEARS = 2;
+  const MAX_QUEUED_YEARS = 4;
   const EMPTY_HOLIDAYS = Object.freeze({});
 
   // 网络完全不可用时的最低限度兜底。这里只包含固定公历日期，
@@ -91,7 +94,7 @@
 
   function createHolidayRecord(date, name, isHoliday, expectedYear) {
     if (!isDateKeyForYear(date, expectedYear)) return null;
-    if (typeof name !== 'string' || name.trim() === '') return null;
+    if (typeof name !== 'string' || name.trim() === '' || name.length > 100) return null;
     if (typeof isHoliday !== 'boolean') return null;
 
     return [date, Object.freeze({ name: name.trim(), isHoliday })];
@@ -116,6 +119,9 @@
     const controller = typeof AbortController === 'function'
       ? new AbortController()
       : null;
+    const abortRequest = () => controller?.abort();
+    if (options.signal?.aborted) abortRequest();
+    else options.signal?.addEventListener('abort', abortRequest, { once: true });
     const timeoutId = controller
       ? setTimeout(() => controller.abort(), timeout)
       : null;
@@ -128,12 +134,13 @@
       return await response.json();
     } finally {
       if (timeoutId !== null) clearTimeout(timeoutId);
+      options.signal?.removeEventListener('abort', abortRequest);
     }
   }
 
   function normalizeNateData(data, expectedYear) {
     const year = normalizeYear(expectedYear);
-    if (!isObject(data) || !Array.isArray(data.days)) {
+    if (!isObject(data) || !Array.isArray(data.days) || data.days.length > MAX_DAYS_PER_YEAR) {
       throw new Error('NateScarlet 数据格式无效');
     }
 
@@ -146,7 +153,8 @@
 
   function normalizeTimorData(data, expectedYear) {
     const year = normalizeYear(expectedYear);
-    if (!isObject(data) || data.code !== 0 || !isObject(data.holiday)) {
+    if (!isObject(data) || data.code !== 0 || !isObject(data.holiday)
+      || Object.keys(data.holiday).length > MAX_DAYS_PER_YEAR) {
       throw new Error('Timor 数据格式无效');
     }
 
@@ -236,6 +244,8 @@
 
       this.cache = new Map();
       this.pendingRequests = new Map();
+      this.activeYears = 0;
+      this.requestQueue = [];
       // 负缓存：即使某年没有持久化数据，也只读取 localStorage 一次。
       this.hydratedYears = new Set();
     }
@@ -246,10 +256,12 @@
     }
 
     /** 获取并缓存指定年份；多个调用者会共享同一个在途请求。 */
-    async fetchHolidays(year) {
+    async fetchHolidays(year, { retryFallback = false } = {}) {
       const normalizedYear = normalizeYear(year);
       const existing = this.getCachedEntry(normalizedYear);
-      if (existing && existing.expiresAt > this.now()) {
+      const retryDegraded = retryFallback
+        && ['local-fallback', 'stale-cache', 'remote-single'].includes(existing?.source);
+      if (existing && existing.expiresAt > this.now() && !retryDegraded) {
         return existing.data;
       }
 
@@ -257,18 +269,47 @@
         return this.pendingRequests.get(normalizedYear);
       }
 
-      const request = this.fetchAndCache(normalizedYear, existing)
-        .finally(() => this.pendingRequests.delete(normalizedYear));
+      let resolve;
+      let reject;
+      const request = new Promise((done, fail) => { resolve = done; reject = fail; });
       this.pendingRequests.set(normalizedYear, request);
+      this.requestQueue.push({ year: normalizedYear, existing, resolve, reject });
+      if (this.requestQueue.length > MAX_QUEUED_YEARS) {
+        // 快速跨年时只保留最近的浏览意图；被跳过的调用仍正常完成。
+        const skipped = this.requestQueue.shift();
+        this.pendingRequests.delete(skipped.year);
+        skipped.resolve(skipped.existing?.data || EMPTY_HOLIDAYS);
+      }
+      this.drainRequests();
       return request;
+    }
+
+    drainRequests() {
+      while (this.activeYears < MAX_ACTIVE_YEARS && this.requestQueue.length) {
+        const job = this.requestQueue.pop();
+        this.activeYears += 1;
+        const finish = (callback, value) => {
+          this.pendingRequests.delete(job.year);
+          this.activeYears -= 1;
+          callback(value);
+          this.drainRequests();
+        };
+        this.fetchAndCache(job.year, job.existing).then(
+          data => finish(job.resolve, data), error => finish(job.reject, error)
+        );
+      }
     }
 
     getCachedEntry(year) {
       const memoryEntry = this.cache.get(year);
-      if (memoryEntry) return memoryEntry;
+      if (memoryEntry) {
+        this.cache.delete(year);
+        this.cache.set(year, memoryEntry);
+        return memoryEntry;
+      }
       if (this.hydratedYears.has(year)) return null;
 
-      this.hydratedYears.add(year);
+      this.markHydrated(year);
       const storedEntry = this.readStoredEntry(year);
       if (storedEntry) this.setCacheEntry(year, storedEntry);
       return storedEntry;
@@ -279,13 +320,21 @@
       // 重新写入的年份移动到末尾，Map 的插入顺序即为轻量 LRU 顺序。
       this.cache.delete(year);
       this.cache.set(year, entry);
-      this.hydratedYears.add(year);
+      this.markHydrated(year);
 
       if (this.cache.size <= MAX_MEMORY_CACHE_YEARS) return;
       const oldestYear = this.cache.keys().next().value;
       this.cache.delete(oldestYear);
       // 被淘汰年份下次访问时可从持久化缓存快速恢复。
       this.hydratedYears.delete(oldestYear);
+    }
+
+    markHydrated(year) {
+      this.hydratedYears.delete(year);
+      this.hydratedYears.add(year);
+      if (this.hydratedYears.size > MAX_MEMORY_CACHE_YEARS) {
+        this.hydratedYears.delete(this.hydratedYears.values().next().value);
+      }
     }
 
     async fetchAndCache(year, staleEntry) {
@@ -304,7 +353,7 @@
 
       if (successfulProviders.length > 0) {
         data = mergeProviderData(providers, this.logger);
-        ttl = REMOTE_CACHE_TTL;
+        ttl = successfulProviders.length === 2 ? REMOTE_CACHE_TTL : FALLBACK_CACHE_TTL;
         source = successfulProviders.length === 2 ? 'remote-merged' : 'remote-single';
       } else if (staleEntry) {
         // 过期数据通常仍比固定日期兜底完整，网络恢复后会再次刷新。
@@ -318,7 +367,8 @@
       }
 
       const entry = Object.freeze({
-        data: annotateFestivalDays(data),
+        // 沿用旧数据时保留只读映射身份，让界面识别无需重绘的失败刷新。
+        data: source === 'stale-cache' ? data : annotateFestivalDays(data),
         source,
         expiresAt: this.now() + ttl
       });
@@ -329,18 +379,25 @@
 
     /** 两个镜像并行请求，任意一个成功即可完成主数据源读取。 */
     async fetchNateProvider(year) {
+      const controller = new AbortController();
       const urls = [
         `https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/${year}.json`,
         `https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/${year}.json`
       ];
-      return Promise.any(urls.map(async (url) => {
-        const data = await fetchJson(url, {
-          fetchImpl: this.fetchImpl,
-          timeout: this.requestTimeout
-        });
-        // 每个镜像先独立校验；一个镜像格式损坏时仍可等待另一个有效结果。
-        return normalizeNateData(data, year);
-      }));
+      try {
+        return await Promise.any(urls.map(async (url) => {
+          const data = await fetchJson(url, {
+            fetchImpl: this.fetchImpl,
+            timeout: this.requestTimeout,
+            signal: controller.signal
+          });
+          // 每个镜像先独立校验；一个镜像格式损坏时仍可等待另一个有效结果。
+          return normalizeNateData(data, year);
+        }));
+      } finally {
+        // 首个有效镜像完成后，取消另一个镜像的下载及响应体读取。
+        controller.abort();
+      }
     }
 
     async fetchTimorProvider(year) {
@@ -354,7 +411,7 @@
     generateLocalFallback(year) {
       return Object.freeze(Object.fromEntries(
         Object.entries(LOCAL_FALLBACK).map(([mmdd, data]) => [
-          `${year}-${mmdd}`,
+          `${String(year).padStart(4, '0')}-${mmdd}`,
           data
         ])
       ));
@@ -368,8 +425,12 @@
         const raw = this.storage.getItem(key);
         if (!raw) return null;
 
-        const entry = normalizeStoredEntry(JSON.parse(raw), year);
+        if (raw.length > 200_000) throw new Error('缓存内容过大');
+        let entry = normalizeStoredEntry(JSON.parse(raw), year);
         if (!entry) throw new Error('缓存结构无效');
+        if (entry.source === 'remote-single' && entry.expiresAt > this.now() + FALLBACK_CACHE_TTL) {
+          entry = Object.freeze({ ...entry, expiresAt: this.now() + FALLBACK_CACHE_TTL });
+        }
         return entry;
       } catch (error) {
         this.logger.warn?.('读取节假日缓存失败：', error);
@@ -386,10 +447,28 @@
       if (!this.storage) return;
 
       try {
+        this.pruneStoredEntries(year);
         this.storage.setItem(`${CACHE_PREFIX}${year}`, JSON.stringify(entry));
       } catch (error) {
         // 缓存失败不应影响日历的核心展示。
         this.logger.warn?.('写入节假日缓存失败：', error);
+      }
+    }
+
+    pruneStoredEntries(keepYear) {
+      if (typeof this.storage.key !== 'function') return;
+      const candidates = [];
+      // 仅处理本应用节假日命名空间，绝不清除偏好或其他站点的数据。
+      for (let index = 0; index < this.storage.length; index += 1) {
+        const key = this.storage.key(index);
+        if (!/^vibe-calendar:holidays:v\d+:\d+$/.test(key) || key === `${CACHE_PREFIX}${keepYear}`) continue;
+        let expiresAt = 0;
+        try { expiresAt = JSON.parse(this.storage.getItem(key))?.expiresAt || 0; } catch {}
+        candidates.push({ key, expiresAt: key.startsWith(CACHE_PREFIX) ? expiresAt : 0 });
+      }
+      candidates.sort((a, b) => a.expiresAt - b.expiresAt || a.key.localeCompare(b.key));
+      for (const item of candidates.slice(0, Math.max(0, candidates.length - MAX_STORED_CACHE_YEARS + 1))) {
+        this.storage.removeItem(item.key);
       }
     }
   }
