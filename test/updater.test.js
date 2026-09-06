@@ -68,6 +68,12 @@ function loadUpdater({
   delete require.cache[updaterPath];
   const originalLoad = Module._load;
   Module._load = function mockElectronModules(request, parent, isMain) {
+    if (parent?.filename === updaterPath) {
+      parent.require = function (name) {
+        if (name === 'electron-updater') return { autoUpdater };
+        return Module.prototype.require.call(this, name);
+      };
+    }
     if (request === 'electron') return electron;
     if (request === 'electron-updater') return { autoUpdater };
     return originalLoad.call(this, request, parent, isMain);

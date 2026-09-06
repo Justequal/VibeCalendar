@@ -10,12 +10,11 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { fileURLToPath } = require('url');
-const {
-  checkForUpdates,
-  getCurrentRelease,
-  getUpdateState,
-  installUpdate
-} = require('./updater');
+// 不在创建窗口前加载更新库及其依赖。状态查询也不触发加载，避免页面初始化
+// 的getUpdateState请求绕过延迟；只有一分钟后的任务或用户主动操作才加载。
+let updater;
+const getUpdater = () => (updater ||= require('./updater'));
+let backgroundTimer;
 
 const LIVE_PREVIEW_ENABLED = process.argv.includes('--live-preview');
 const RENDERER_DIRECTORY = path.join(__dirname, '../renderer');
@@ -74,22 +73,22 @@ function registerIpcHandlers() {
   );
   ipcMain.handle(
     IPC_CHANNELS.getCurrentRelease,
-    fromTrustedRenderer(() => getCurrentRelease())
+    fromTrustedRenderer(() => getUpdater().getCurrentRelease())
   );
   ipcMain.handle(
     IPC_CHANNELS.getUpdateState,
-    fromTrustedRenderer(() => getUpdateState())
+    fromTrustedRenderer(() => updater?.getUpdateState() || { phase: 'idle' })
   );
   ipcMain.handle(
     IPC_CHANNELS.checkForUpdates,
-    fromTrustedRenderer((event) => checkForUpdates(
+    fromTrustedRenderer((event) => getUpdater().checkForUpdates(
       BrowserWindow.fromWebContents(event.sender),
       { manual: true }
     ))
   );
   ipcMain.handle(
     IPC_CHANNELS.installUpdate,
-    fromTrustedRenderer(() => installUpdate())
+    fromTrustedRenderer(() => getUpdater().installUpdate())
   );
 }
 
@@ -194,7 +193,13 @@ if (!hasSingleInstanceLock) {
     console.log('🚀 Electron app.whenReady 完成，开始创建窗口...');
     registerIpcHandlers();
     const createdWindow = createWindow();
-    void checkForUpdates(createdWindow);
+    // 首屏优先：一分钟内不启动更新检查或加载更新库。退出时清理计时器，
+    // unref防止仅剩后台定时器时阻止进程结束。安装能力必须保留在Electron主进程。
+    backgroundTimer = setTimeout(() => {
+      backgroundTimer = null;
+      if (!createdWindow.isDestroyed()) void getUpdater().checkForUpdates(createdWindow);
+    }, 60_000);
+    backgroundTimer.unref?.();
 
     // macOS 关闭所有窗口后应用仍可驻留；点击 Dock 图标时重新创建窗口。
     app.on('activate', () => {
@@ -207,3 +212,5 @@ if (!hasSingleInstanceLock) {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+app.on('before-quit', () => clearTimeout(backgroundTimer));

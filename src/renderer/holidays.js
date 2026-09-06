@@ -19,9 +19,9 @@
     module.exports = api;
   }
 
-  if (root && typeof root.document !== 'undefined') {
+  if (root && (typeof root.document !== 'undefined' || typeof root.importScripts === 'function')) {
     root.HolidayService = api;
-    root.holidayManager = api.createHolidayManager();
+    if (typeof root.document !== 'undefined') root.holidayManager = api.createHolidayManager();
   }
 })(typeof window !== 'undefined' ? window : globalThis, (HolidayData) => {
   if (!HolidayData) throw new Error('HolidayService 需要先加载 HolidayData');

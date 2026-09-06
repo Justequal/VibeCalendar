@@ -8,7 +8,7 @@
  *
  * 给前端初学者的阅读提示：DOM 是浏览器中的页面对象树，elements 保存常用节点；
  * state 保存会变化的数据；render* 函数把 state 转成页面内容；bindEvents 把按钮、
- * 键盘和滚轮输入转换为 state 变化。文件末尾四行就是整个页面的启动顺序。
+ * 键盘和滚轮输入转换为 state 变化。文件末尾给出页面启动顺序和后台任务的延迟入口。
  */
 (function bootstrapCalendar() {
   const STORAGE_KEYS = Object.freeze({
@@ -444,6 +444,13 @@
 
   bindEvents();
   scheduleClockTick();
-  updateController.initialize();
   renderCalendar();
+  performance.mark('calendar-ready');
+  // 日历先完成同步绘制，版本号和更新快照的IPC随后初始化。
+  updateController.initialize();
+  const backgroundTimer = setTimeout(() => void renderCalendar(), 60_000);
+  window.addEventListener('pagehide', () => {
+    clearTimeout(backgroundTimer);
+    window.holidayManager.dispose?.();
+  }, { once: true });
 })();

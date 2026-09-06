@@ -13,6 +13,8 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
   let stateCalls = 0;
   let quitCalls = 0;
   let watcher;
+  let updaterLoads = 0;
+  const backgroundTimers = [];
 
   class FakeBrowserWindow {
     static instances = [];
@@ -96,18 +98,34 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
   delete require.cache[mainPath];
   const originalLoad = Module._load;
   Module._load = function mockMainDependencies(request, parent, isMain) {
+    if (parent?.filename === mainPath) {
+      parent.require = function (name) {
+        if (name === './updater') { updaterLoads += 1; return updater; }
+        return Module.prototype.require.call(this, name);
+      };
+    }
     if (request === 'electron') return electron;
     if (request === 'fs') return fs;
     if (request === './updater' && parent?.filename === mainPath) return updater;
     return originalLoad.call(this, request, parent, isMain);
   };
 
+  const originalSetTimeout = global.setTimeout;
+  global.setTimeout = (callback, delay, ...args) => {
+    if (delay === 60_000) {
+      const timer = { callback, delay, unref() {} };
+      backgroundTimers.push(timer);
+      return timer;
+    }
+    return originalSetTimeout(callback, delay, ...args);
+  };
   if (livePreview) process.argv.push('--live-preview');
   try {
     require(mainPath);
     await new Promise((resolve) => setImmediate(resolve));
   } finally {
     Module._load = originalLoad;
+    global.setTimeout = originalSetTimeout;
     if (livePreview) {
       const argumentIndex = process.argv.lastIndexOf('--live-preview');
       if (argumentIndex >= 0) process.argv.splice(argumentIndex, 1);
@@ -118,6 +136,8 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
     appListeners,
     ipcHandlers,
     updateCalls,
+    backgroundTimers,
+    getUpdaterLoads: () => updaterLoads,
     installCalls,
     getReleaseCalls: () => releaseCalls,
     getStateCalls: () => stateCalls,
@@ -127,7 +147,7 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
   };
 }
 
-test('主进程以安全配置创建窗口，并在启动后自动检查更新', async () => {
+test('主进程先创建窗口，一分钟后才加载更新库并检查', async () => {
   const subject = await loadMainProcess();
   const window = subject.window;
 
@@ -138,9 +158,24 @@ test('主进程以安全配置创建窗口，并在启动后自动检查更新',
   assert.match(window.options.webPreferences.preload, /preload\.js$/);
   assert.match(window.loadedFile, /renderer[\\/]index\.html$/);
   assert.deepEqual(window.openHandler(), { action: 'deny' });
+  assert.equal(subject.updateCalls.length, 0);
+  assert.equal(subject.getUpdaterLoads(), 0);
+  const trustedEvent = { senderFrame: { url: pathToFileURL(path.resolve(__dirname, '../src/renderer/index.html')).href } };
+  assert.deepEqual(subject.ipcHandlers.get('updates:get-state')(trustedEvent), { phase: 'idle' });
+  assert.equal(subject.getUpdaterLoads(), 0, '启动状态快照不得提前加载更新库');
+  assert.equal(subject.backgroundTimers[0].delay, 60_000);
+  subject.backgroundTimers[0].callback();
   assert.equal(subject.updateCalls.length, 1);
   assert.equal(subject.updateCalls[0][0], window);
   assert.equal(subject.updateCalls[0][1], undefined);
+});
+
+test('首分钟内窗口关闭后，不再启动更新检查', async () => {
+  const subject = await loadMainProcess();
+  subject.window.destroyed = true;
+  subject.backgroundTimers[0].callback();
+  assert.equal(subject.updateCalls.length, 0);
+  assert.equal(subject.getUpdaterLoads(), 0);
 });
 
 test('重复启动只唤醒已有窗口，未取得单实例锁时不创建窗口', async () => {
@@ -204,9 +239,9 @@ test('更新 IPC 只接受本地日历页面，并正确区分公告与手动检
 
   const manualResult = await subject.ipcHandlers.get('updates:check')(trustedEvent);
   assert.equal(manualResult.status, 'up-to-date');
-  assert.equal(subject.updateCalls.length, 2);
-  assert.equal(subject.updateCalls[1][0], subject.window);
-  assert.deepEqual(subject.updateCalls[1][1], { manual: true });
+  assert.equal(subject.updateCalls.length, 1);
+  assert.equal(subject.updateCalls[0][0], subject.window);
+  assert.deepEqual(subject.updateCalls[0][1], { manual: true });
 
   assert.deepEqual(
     await subject.ipcHandlers.get('updates:install')(trustedEvent),

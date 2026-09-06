@@ -37,7 +37,8 @@ async function run() {
       }
       await new Promise(resolve => setTimeout(resolve, 0));
       observer.disconnect();
-      return { actions: 1000, replacements, navigationMs: performance.now() - start,
+      return { calendarReadyMs: performance.getEntriesByName('calendar-ready')[0]?.startTime,
+        actions: 1000, replacements, navigationMs: performance.now() - start,
         beforeHeap, afterHeap: performance.memory.usedJSHeapSize };
     })()`);
     app.getAppMetrics();

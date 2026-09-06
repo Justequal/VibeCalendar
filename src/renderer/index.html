@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 只允许本地脚本/样式，并明确限制节假日数据的联网范围。 -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src https://cdn.jsdelivr.net https://raw.githubusercontent.com https://timor.tech; img-src 'self' data:; object-src 'none'; base-uri 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; connect-src https://cdn.jsdelivr.net https://raw.githubusercontent.com https://timor.tech; img-src 'self' data:; object-src 'none'; base-uri 'none'">
   <title>VibeCalendar</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -91,6 +91,7 @@
   <script src="translations.js"></script>
   <script src="holiday-data.js"></script>
   <script src="holidays.js"></script>
+  <script src="holiday-background.js"></script>
   <script src="update-controller.js"></script>
   <script src="renderer.js"></script>
 </body>

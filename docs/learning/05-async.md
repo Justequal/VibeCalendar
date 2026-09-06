@@ -11,3 +11,9 @@
 练习：让假fetch抛错，观察服务如何提供本地降级数据，再参考[服务测试](../../test/holiday-service.test.js)补上相应预期。渲染器另外使用递增序号，只有最新调用可要求重绘；服务缓存仍可接收旧调用获取的有效数据。
 
 检查理解：缓存解决重复工作，渲染序号解决谁有权更新界面，它们处理的问题不同。下一课看跨进程消息。
+
+## 扩展：异步不等于多线程
+
+Promise与await允许等待期间处理其他事件，但不会自动把JSON解析移出当前线程。阅读[后台代理](../../src/renderer/holiday-background.js)与[Worker入口](../../src/renderer/holiday-worker.js)：两边通过postMessage交换可复制数据，Worker没有DOM和localStorage。
+
+本项目在60秒后才创建线程，避免线程启动也抢占首屏资源。用单调时钟限制延迟，用任务编号配对响应，用超时释放未完成的请求。结构化克隆不保留Object.freeze，所以主线程接收后恢复只读约束。学习时先理解两条消息，再阅读缓存与失败恢复；Electron安装API依然留在主进程。

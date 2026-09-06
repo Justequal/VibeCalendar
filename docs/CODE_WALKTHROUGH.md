@@ -49,7 +49,7 @@ IPC 是 Electron 中两个进程传递消息的机制。渲染页面不能直接
 
 ```text
 festival-dates → calendar-core → calendar-state → interaction-core
-              → translations → holiday-data → holidays
+              → translations → holiday-data → holidays → holiday-background
               → update-controller → renderer
 ```
 
@@ -59,7 +59,7 @@ festival-dates → calendar-core → calendar-state → interaction-core
 绑定点击、键盘和滚轮事件
 → 启动按整秒校准的时钟
 → 初始化版本与更新按钮
-→ 立即绘制日历，再异步刷新节假日
+→ 立即绘制本地日历，至少60秒后由Worker刷新节假日
 ```
 
 脚本没有使用前端框架和构建器，因此运行时看到的文件就是仓库中的源码。新增脚本时必须在
@@ -79,7 +79,7 @@ festival-dates → calendar-core → calendar-state → interaction-core
 一次渲染分为两段：
 
 1. 从内存或本地缓存读取已有节假日，立即构造 42 个日期格。
-2. 并行刷新画面涉及的年份；请求完成后，只有渲染序号仍是最新值才重绘。
+2. 首分钟只返回缓存；60秒后由Worker刷新画面涉及的年份，只有渲染序号仍是最新值才重绘。
 
 第二步的序号检查解决了常见竞态：用户快速翻到 10 月后，较慢的 9 月网络请求可能才返回。
 渲染器始终读取当前状态；比较 `renderVersion` 防止旧调用触发多余重绘，而不是依赖旧月份快照绘制。

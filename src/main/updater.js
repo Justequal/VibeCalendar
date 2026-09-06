@@ -12,7 +12,9 @@
  * 顺序不固定。本模块集中保存状态、合并重复任务，并保证“已下载”不会被迟到事件覆盖。
  */
 const { app } = require('electron');
-const { autoUpdater } = require('electron-updater');
+// 本地公告不需要更新库。进一步推迟加载，使用户启动后点击版本号也不会
+// 提前解析electron-updater整棵依赖树；真正开始检查时才初始化。
+let autoUpdater;
 const fs = require('node:fs');
 const path = require('node:path');
 const packageMetadata = require('../../package.json');
@@ -246,6 +248,8 @@ function handleUpdateError(error) {
 function initializeAutoUpdater(parentWindow) {
   updateParentWindow = parentWindow || updateParentWindow;
   if (updaterInitialized) return;
+
+  autoUpdater ||= require('electron-updater').autoUpdater;
 
   updaterInitialized = true;
   // 下载由本模块在确认版本后显式启动，避免仅检查到新版却没有开始下载。

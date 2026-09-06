@@ -46,7 +46,7 @@
 ```
 
 脚本由 `index.html` 按依赖顺序加载：`festival-dates.js` → `calendar-core.js` → `calendar-state.js` → `interaction-core.js` → `translations.js` →
-`holiday-data.js` → `holidays.js` → `update-controller.js` → `renderer.js`。项目没有模块打包步骤，因此调整文件名、
+`holiday-data.js` → `holidays.js` → `holiday-background.js` → `update-controller.js` → `renderer.js`。项目没有模块打包步骤，因此调整文件名、
 新增全局入口或改变加载顺序时，必须同步检查 `index.html`。
 
 ## 3. 模块职责
@@ -301,3 +301,15 @@ preload → update-controller → renderer
 `holiday-data.js`定义统一记录与缓存契约；`holidays.js`保留原有适配器导出以兼容调用方。`calendar-state.js`返回新业务状态，控制器继续负责偏好持久化、计时和异步序号。渲染快照与业务状态分开管理。
 
 源码注释说明输入输出、可变性、副作用、边界和设计原因；复杂流程按决策顺序解释，并链接课程。教学扩展放在lessons，采用原生ES模块、依赖注入、数组管道、订阅和生成器，避免给应用添加无用途的抽象或运行时依赖。
+
+## 首屏优先与后台线程
+
+启动路径只创建窗口和绘制本地日历。主进程不预加载updater，页面读取更新快照时返回idle；60秒后才加载更新库并检查。用户主动查看本地公告不启动网络检查。
+
+holiday-background.js是轻量代理，用performance.now单调时钟限制启动时间，翻月、focus、online都无法提前创建Worker。首屏读取现有本地缓存，60秒后刷新当前窗口需要的年份。holiday-worker.js在独立Web Worker中复用HolidayService，承担请求、JSON解析、校验、合并和降级；主线程接收冻结快照、写入兼容的localStorage并更新DOM。
+
+Worker按需创建，同年任务合并，主线程最多保留6个等待结果，优先最新浏览年份；异常或45秒无结果时终止Worker、释放等待者，30秒冷却后由后续操作重试。页面关闭时终止线程。线程不可用时保留缓存，不回退到界面线程发请求。
+
+Electron更新器依赖主进程API，检查与安装调用保留在主进程，延后加载和异步执行；不能把Promise误称为新线程。真正移入Worker的是节假日后台工作，时钟、DOM和少量本地偏好读取是前台必要工作。
+
+性能脚本输出calendarReadyMs（页面导航至网格构造完成），以及Electron窗口加载耗时。二者都不是操作系统冷启动至用户实际看到像素的保证。

@@ -63,9 +63,10 @@ async function run() {
     }
   });
   // 隔离真实节假日请求，保证离线测试不受提供方响应和网络时序影响。
+  let backgroundRequests = 0;
   window.webContents.session.webRequest.onBeforeRequest(
     { urls: ['http://*/*', 'https://*/*'] },
-    (_details, callback) => callback({ cancel: true })
+    (_details, callback) => { backgroundRequests += 1; callback({ cancel: true }); }
   );
 
   try {
@@ -97,6 +98,29 @@ async function run() {
     assert.match(initial.clock, /^\d{2}:\d{2}:\d{2}$/);
     assert.equal(initial.todayCount, 1);
     assert.equal(initial.pageFits, true);
+    assert.equal(backgroundRequests, 0, '首屏不得发起后台网络请求');
+
+    // 可控单调时钟仅传给测试代理；生产实例保持真实60秒保护。
+    // 使用真实Web Worker和同一套离线拦截，验证它能在沙箱/CSP下加载并完成工作。
+    const workerResult = await invoke(window, `
+      let elapsed = 0;
+      let created = 0;
+      const manager = createBackgroundHolidayManager({
+        local: HolidayService.createHolidayManager({ fetchImpl: null, storage: null }),
+        now: () => elapsed,
+        createWorker: () => { created += 1; return new Worker('holiday-worker.js'); }
+      });
+      await manager.fetchHolidays(2026);
+      elapsed = 59999;
+      await manager.fetchHolidays(2026, { retryFallback: true });
+      const before = created;
+      elapsed = 60000;
+      const holidays = await manager.fetchHolidays(2026);
+      const result = { before, after: created, holiday: holidays['2026-01-01']?.name, frozen: Object.isFrozen(holidays) };
+      manager.dispose();
+      return result;
+    `);
+    assert.deepEqual(workerResult, { before: 0, after: 1, holiday: '元旦', frozen: true });
 
     const navigation = await invoke(window, `
       const originalTitle = document.getElementById('month-year').textContent;
