@@ -1,4 +1,6 @@
 /**
+ * 教学入口：docs/learning/06-desktop.md。先读窗口创建，再读Preload与IPC注册，最后进入更新服务。
+ *
  * Electron 主进程入口。
  *
  * 主进程只负责窗口生命周期和操作系统能力；日期、节假日和 DOM 逻辑全部留在

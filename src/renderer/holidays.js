@@ -3,12 +3,17 @@
  *
  * 浏览器侧仍只通过 window.holidayManager 使用该服务；同时导出可注入依赖的
  * HolidayManager，便于在 Node.js 中验证缓存、并发和离线恢复，而无需模拟 DOM。
+ *
+ * 学习入口：docs/learning/05-async.md。数据格式见holiday-data.js。
+ * 阅读主线：getHolidays（立即读取）→ fetchHolidays（决定是否排队）
+ * → drainRequests（启动工作）→ fetchAndCache（请求、合并、保存）。
+ * 网络与存储是“副作用”：它们依赖外部环境，因此通过构造参数注入以便替换和测试。
  */
 (function exposeHolidayService(root, factory) {
   const isCommonJs = typeof module !== 'undefined' && module.exports;
-  const calendarCore = root?.CalendarCore
-    || (isCommonJs ? require('./calendar-core') : null);
-  const api = factory(calendarCore);
+  const holidayData = root?.HolidayData
+    || (isCommonJs ? require('./holiday-data') : null);
+  const api = factory(holidayData);
 
   if (isCommonJs) {
     module.exports = api;
@@ -18,10 +23,13 @@
     root.HolidayService = api;
     root.holidayManager = api.createHolidayManager();
   }
-})(typeof window !== 'undefined' ? window : globalThis, (CalendarCore) => {
-  if (!CalendarCore) {
-    throw new Error('HolidayService 需要先加载 CalendarCore');
-  }
+})(typeof window !== 'undefined' ? window : globalThis, (HolidayData) => {
+  if (!HolidayData) throw new Error('HolidayService 需要先加载 HolidayData');
+  // 适配器只整理数据；本服务决定何时请求、缓存多久、失败后如何恢复。
+  const {
+    EMPTY_HOLIDAYS, normalizeYear, annotateFestivalDays, mergeProviderData,
+    normalizeNateData, normalizeStoredEntry, normalizeTimorData
+  } = HolidayData;
 
   // v3 增加 holiday 字段，用于在英文界面翻译整段假期的名称。
   const CACHE_VERSION = 3;
@@ -29,12 +37,10 @@
   const REMOTE_CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
   const FALLBACK_CACHE_TTL = 6 * 60 * 60 * 1000;
   const REQUEST_TIMEOUT = 5000;
-  const MAX_DAYS_PER_YEAR = 366;
   const MAX_MEMORY_CACHE_YEARS = 12;
   const MAX_STORED_CACHE_YEARS = 24;
   const MAX_ACTIVE_YEARS = 2;
   const MAX_QUEUED_YEARS = 4;
-  const EMPTY_HOLIDAYS = Object.freeze({});
 
   // 网络完全不可用时的最低限度兜底。这里只包含固定公历日期，
   // 不尝试猜测春节、清明等日期以及调休安排。
@@ -61,54 +67,15 @@
     }
   }
 
-  function normalizeYear(year) {
-    const value = Number(year);
-    if (!Number.isInteger(value) || value < 1 || value > 9999) {
-      throw new RangeError(`无效年份：${year}`);
-    }
-    return value;
-  }
-
-  function isObject(value) {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-  }
-
-  function isDateKeyForYear(dateKey, expectedYear) {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateKey));
-    if (!match) return false;
-
-    const [, yearText, monthText, dayText] = match;
-    const year = Number(yearText);
-    const month = Number(monthText);
-    const day = Number(dayText);
-    if (year !== expectedYear) return false;
-
-    // Date.UTC 会把 0–99 年自动映射为 1900–1999；显式设置年份可避免该隐式规则。
-    const normalized = new Date(0);
-    normalized.setUTCHours(0, 0, 0, 0);
-    normalized.setUTCFullYear(year, month - 1, day);
-    return normalized.getUTCFullYear() === year
-      && normalized.getUTCMonth() === month - 1
-      && normalized.getUTCDate() === day;
-  }
-
-  function createHolidayRecord(date, name, isHoliday, expectedYear) {
-    if (!isDateKeyForYear(date, expectedYear)) return null;
-    if (typeof name !== 'string' || name.trim() === '' || name.length > 100) return null;
-    if (typeof isHoliday !== 'boolean') return null;
-
-    return [date, Object.freeze({ name: name.trim(), isHoliday })];
-  }
-
-  function createHolidayMap(records, providerName) {
-    const validRecords = records.filter(Boolean);
-    if (validRecords.length === 0) {
-      throw new Error(`${providerName} 未返回有效节假日记录`);
-    }
-    return Object.freeze(Object.fromEntries(validRecords));
-  }
-
-  /** 使用 AbortController 真正取消超时请求，而不只是停止等待。 */
+  /**
+   * 请求JSON，并在成功或失败后释放计时器和取消监听。
+   * AbortController负责传递取消信号；fetch及响应体读取负责响应信号。
+   * 注意await response.json()也在try中，所以响应头到达并不会提前结束超时保护。
+   * options.signal是外部取消（例如镜像胜出），timeout是单次请求自己的时间限制。
+   * @param {string} url
+   * @param {{fetchImpl?: Function|null, timeout?: number, signal?: AbortSignal}} [options]
+   * @returns {Promise<unknown>} 返回后仍需用HolidayData校验结构
+   */
   async function fetchJson(url, options = {}) {
     const fetchImpl = options.fetchImpl === undefined
       ? getDefaultFetch()
@@ -138,99 +105,14 @@
     }
   }
 
-  function normalizeNateData(data, expectedYear) {
-    const year = normalizeYear(expectedYear);
-    if (!isObject(data) || !Array.isArray(data.days) || data.days.length > MAX_DAYS_PER_YEAR) {
-      throw new Error('NateScarlet 数据格式无效');
-    }
-
-    return createHolidayMap(data.days.map((item) => (
-      isObject(item)
-        ? createHolidayRecord(item.date, item.name, item.isOffDay, year)
-        : null
-    )), 'NateScarlet');
-  }
-
-  function normalizeTimorData(data, expectedYear) {
-    const year = normalizeYear(expectedYear);
-    if (!isObject(data) || data.code !== 0 || !isObject(data.holiday)
-      || Object.keys(data.holiday).length > MAX_DAYS_PER_YEAR) {
-      throw new Error('Timor 数据格式无效');
-    }
-
-    return createHolidayMap(Object.values(data.holiday).map((item) => (
-      isObject(item)
-        ? createHolidayRecord(item.date, item.name, item.holiday, year)
-        : null
-    )), 'Timor');
-  }
-
-  /**
-   * 补充“整段假期”和“节日本日”两个语义字段。结果只读，避免渲染层意外
-   * 修改共享缓存后影响其他月份。
-   */
-  function annotateFestivalDays(data) {
-    const entries = Object.entries(data).map(([dateKey, value]) => {
-      const [year, month, day] = dateKey.split('-').map(Number);
-      return [dateKey, Object.freeze({
-        name: value.name,
-        isHoliday: value.isHoliday,
-        holiday: CalendarCore.getChineseHolidayKey(value.name),
-        festival: CalendarCore.getChineseFestivalKey(
-          year,
-          month - 1,
-          day,
-          value.name
-        )
-      })];
-    });
-    return Object.freeze(Object.fromEntries(entries));
-  }
-
-  /**
-   * NateScarlet 作为主数据集，Timor 补充缺失日期。发生冲突时保留主数据，
-   * 同时输出诊断信息，避免用“多数投票”掩盖只有两个独立来源的事实。
-   */
-  function mergeProviderData(providerResults, logger = console) {
-    const [primary, secondary] = providerResults;
-    if (!primary) return secondary || EMPTY_HOLIDAYS;
-    if (!secondary) return primary;
-
-    const merged = { ...primary };
-    for (const [date, value] of Object.entries(secondary)) {
-      if (!merged[date]) {
-        merged[date] = value;
-      } else if (merged[date].isHoliday !== value.isHoliday) {
-        logger.warn?.(`节假日数据冲突：${date}，已采用主数据源。`);
-      }
-    }
-    return Object.freeze(merged);
-  }
-
-  /** 把不可信的 localStorage 内容收窄为当前服务认可的数据结构。 */
-  function normalizeStoredEntry(entry, expectedYear) {
-    const year = normalizeYear(expectedYear);
-    if (!isObject(entry) || !isObject(entry.data)) return null;
-    if (!Number.isFinite(entry.expiresAt)) return null;
-
-    const records = Object.entries(entry.data);
-    if (records.length === 0 || records.length > MAX_DAYS_PER_YEAR) return null;
-
-    const normalizedRecords = records.map(([date, value]) => (
-      isObject(value)
-        ? createHolidayRecord(date, value.name, value.isHoliday, year)
-        : null
-    ));
-    if (normalizedRecords.some((record) => record === null)) return null;
-
-    return Object.freeze({
-      data: annotateFestivalDays(Object.fromEntries(normalizedRecords)),
-      source: typeof entry.source === 'string' ? entry.source : 'stored-cache',
-      expiresAt: entry.expiresAt
-    });
-  }
-
   class HolidayManager {
+    /**
+     * 依赖注入不需要容器或框架：调用方传一个具有相同方法的对象即可。
+     * undefined表示使用真实环境默认值；显式null表示禁用该能力（离线测试会用到）。
+     * now只返回毫秒时间戳，所以测试可通过修改一个数字模拟六小时后，而不用真的等待。
+     * @param {{fetchImpl?: Function|null, storage?: Storage|null, now?: Function,
+     * logger?: Object, requestTimeout?: number}} [options]
+     */
     constructor(options = {}) {
       this.fetchImpl = options.fetchImpl === undefined
         ? getDefaultFetch()
@@ -242,6 +124,8 @@
       this.logger = options.logger || console;
       this.requestTimeout = options.requestTimeout ?? REQUEST_TIMEOUT;
 
+      // 三种容器解决三种问题：Map保存“年份→结果/任务”，数组保存等待顺序，
+      // Set只回答“这个年份是否已经尝试读取存储”。它们不是同一份缓存的重复副本。
       this.cache = new Map();
       this.pendingRequests = new Map();
       this.activeYears = 0;
@@ -255,7 +139,14 @@
       return this.getCachedEntry(normalizeYear(year))?.data || EMPTY_HOLIDAYS;
     }
 
-    /** 获取并缓存指定年份；多个调用者会共享同一个在途请求。 */
+    /**
+     * 决策顺序：有效缓存 → 已有工作 → 创建新工作。
+     * 调用者共享在途工作与结果；由于本方法是async，返回的包装Promise不保证===相同。
+     * retryFallback只绕过不完整数据的有效期，不会强制刷新正常的双源缓存。
+     * @param {number|string} year
+     * @param {{retryFallback?: boolean}} [options]
+     * @returns {Promise<import('./holiday-data').HolidayMap>}
+     */
     async fetchHolidays(year, { retryFallback = false } = {}) {
       const normalizedYear = normalizeYear(year);
       const existing = this.getCachedEntry(normalizedYear);
@@ -269,6 +160,8 @@
         return this.pendingRequests.get(normalizedYear);
       }
 
+      // 创建一个现在返回、稍后由队列完成的Promise。这里必须保留resolve/reject，
+      // 因为“接收请求”和“取得并发名额”可能发生在不同时间。
       let resolve;
       let reject;
       const request = new Promise((done, fail) => { resolve = done; reject = fail; });
@@ -284,6 +177,11 @@
       return request;
     }
 
+    /**
+     * 有名额就启动等待任务；pop优先最新浏览，shift在超限时丢弃最旧等待任务。
+     * finish是共同出口：无论成功还是失败，先释放年份锁和并发名额，再继续调度。
+     * 这里限制的是年份任务数，每个年份内部还会启动两个镜像和一个补充提供方。
+     */
     drainRequests() {
       while (this.activeYears < MAX_ACTIVE_YEARS && this.requestQueue.length) {
         const job = this.requestQueue.pop();
@@ -300,6 +198,7 @@
       }
     }
 
+    /** 先内存、后存储；Map删除后重新插入，让读取本身更新最近访问顺序。 */
     getCachedEntry(year) {
       const memoryEntry = this.cache.get(year);
       if (memoryEntry) {
@@ -337,6 +236,11 @@
       }
     }
 
+    /**
+     * allSettled等待两个独立提供方的结论，即使一个失败也保留另一个的成功数据。
+     * 然后按双源/单源/旧缓存/最小兜底四种来源选择数据和有效期。
+     * 这段是服务的用例编排；字段转换由HolidayData承担，DOM显示由renderer承担。
+     */
     async fetchAndCache(year, staleEntry) {
       const settled = await Promise.allSettled([
         this.fetchNateProvider(year),
@@ -477,6 +381,7 @@
     return new HolidayManager(options);
   }
 
+  // 保留旧入口的适配器导出，让已有调用方继续工作；新读者可直接阅读HolidayData。
   return Object.freeze({
     HolidayManager,
     annotateFestivalDays,

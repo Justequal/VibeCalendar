@@ -1,4 +1,6 @@
 /**
+ * 教学入口：docs/learning/06-desktop.md。状态事件与请求结果是两条异步通道，应按业务进度和版本校验，而非假设到达顺序。
+ *
  * 更新功能的界面控制器。
  *
  * Electron 能力只通过 preload 暴露的 appUpdates 接口使用。此模块负责更新按钮、

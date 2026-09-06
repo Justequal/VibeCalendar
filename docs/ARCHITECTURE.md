@@ -35,7 +35,9 @@
 ┌────────────────────────── 渲染进程 ─────────────────────────────┐
 │ calendar-core.js     纯日期计算与节日本日判定                    │
 │ interaction-core.js  滚轮单位换算与完整行累计                    │
-│ holidays.js          节假日请求、标准化、缓存、合并与降级         │
+│ calendar-state.js    动作到状态的纯转换                          │
+│ holiday-data.js      节假日校验、标准化与合并                    │
+│ holidays.js          节假日请求、缓存与降级                      │
 │ translations.js      中英文用户界面文案                          │
 │ update-controller.js 版本号、手动检查与公告弹层                  │
 │ renderer.js          页面状态、日期网格渲染与日历输入事件         │
@@ -43,8 +45,8 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-脚本由 `index.html` 按依赖顺序加载：`festival-dates.js` → `calendar-core.js` → `interaction-core.js` → `translations.js` →
-`holidays.js` → `update-controller.js` → `renderer.js`。项目没有模块打包步骤，因此调整文件名、
+脚本由 `index.html` 按依赖顺序加载：`festival-dates.js` → `calendar-core.js` → `calendar-state.js` → `interaction-core.js` → `translations.js` →
+`holiday-data.js` → `holidays.js` → `update-controller.js` → `renderer.js`。项目没有模块打包步骤，因此调整文件名、
 新增全局入口或改变加载顺序时，必须同步检查 `index.html`。
 
 ## 3. 模块职责
@@ -103,7 +105,7 @@ Preload 通过 `contextBridge` 暴露冻结的 `window.appUpdates`：
 - `toDateKey`：生成 `YYYY-MM-DD` 索引键；
 - `getChineseHolidayKey`、`getChineseFestivalKey`：把数据源名称映射为稳定键，并判断真正的节日本日。
 
-文件使用 UMD 形式，同时支持浏览器全局 `CalendarCore` 和 CommonJS 测试。该层不应读取
+文件使用浏览器全局与CommonJS双入口（不包含AMD支持），同时支持浏览器全局 `CalendarCore` 和 CommonJS 测试。该层不应读取
 `document`、`localStorage` 或 `fetch`。
 
 42 格窗口使用单个正午 `Date` 游标连续推进；`createDate` 显式设置完整年份，避免1–99年映射到1900年代。导航钳制在1–9999年；首尾网格超出范围的相邻日期呈现空白禁用格，不向节假日服务传入非法年份。`festival-dates.js` 包含天文台1901–2100年的四类节日本日，由 `scripts/sync-festival-dates.js` 校验生成，替换农历运行时推算与清明近似公式。
@@ -112,7 +114,11 @@ Preload 通过 `contextBridge` 暴露冻结的 `window.appUpdates`：
 
 输入领域层把像素、行和页面三种滚轮单位统一换算为日历行数，并持续保留不足一行的余量。快速输入可以一次返回多行，渲染层再把同一动画帧内的结果合并为一次 DOM 更新。该模块同时导出 CommonJS 接口，回归测试会明确断言大幅滚动不会退化为只移动一行。
 
-### `src/renderer/holidays.js`
+### `src/renderer/calendar-state.js`
+
+以旧状态和显式动作生成新状态，不读时钟、不写存储、不操作DOM。按钮、键盘和滚轮共享这些转换规则，控制器负责调用后的副作用。
+
+### `src/renderer/holiday-data.js`
 
 节假日数据层把不同提供方统一为以下结构：
 
@@ -129,7 +135,9 @@ Preload 通过 `contextBridge` 暴露冻结的 `window.appUpdates`：
 
 其中 `holiday` 表示该记录所属的法定假期，`festival` 只在真正的节日本日存在。因此同一假期内的普通休息日不会被误标为节日本日。
 
-数据获取顺序是：
+### `src/renderer/holidays.js`
+
+服务层通过数据适配器消费上述契约；数据获取顺序是：
 
 1. 当前进程内存缓存；
 2. 未过期的 `localStorage` 缓存；
@@ -279,3 +287,17 @@ BrowserWindow 保持以下设置：
 - 公共函数或跨层返回结构使用简短 JSDoc 说明输入、输出和错误语义。
 - 行为、脚本、目录或发布条件改变时，同步更新 README、对应专题文档和 CHANGELOG。
 - 不在文档中承诺尚未实现的功能；计划项应进入 Issue，而不是混入当前架构说明。
+
+## 教学分层与依赖方向
+
+学习入口：[递进课程](learning/README.md)。日期核心依赖静态节日表；状态转换与数据适配依赖日期核心；异步服务依赖数据适配；界面控制器组织这些模块。纯计算层不访问DOM、存储或网络，数据合并仅允许调用方提供诊断日志。
+
+```text
+festival-dates → calendar-core → calendar-state → renderer
+                              → holiday-data → holidays → renderer
+preload → update-controller → renderer
+```
+
+`holiday-data.js`定义统一记录与缓存契约；`holidays.js`保留原有适配器导出以兼容调用方。`calendar-state.js`返回新业务状态，控制器继续负责偏好持久化、计时和异步序号。渲染快照与业务状态分开管理。
+
+源码注释说明输入输出、可变性、副作用、边界和设计原因；复杂流程按决策顺序解释，并链接课程。教学扩展放在lessons，采用原生ES模块、依赖注入、数组管道、订阅和生成器，避免给应用添加无用途的抽象或运行时依赖。

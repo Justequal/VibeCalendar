@@ -4,6 +4,8 @@
 解释语法，而是说明程序从哪里启动、数据怎样流动、复杂功能为什么这样实现。模块的约束和
 测试范围分别见 [架构说明](ARCHITECTURE.md) 与 [开发指南](DEVELOPMENT.md)。
 
+完整课程从[八阶段学习路径](learning/README.md)开始，本文作为源码地图。
+
 ## 1. 先建立整体概念
 
 Electron 应用同时包含两个运行环境：
@@ -46,7 +48,8 @@ IPC 是 Electron 中两个进程传递消息的机制。渲染页面不能直接
 `index.html` 按依赖顺序加载脚本。前面的文件先把 API 放到 `window`，后面的文件再使用：
 
 ```text
-calendar-core → interaction-core → translations → holidays
+festival-dates → calendar-core → calendar-state → interaction-core
+              → translations → holiday-data → holidays
               → update-controller → renderer
 ```
 
@@ -64,7 +67,7 @@ calendar-core → interaction-core → translations → holidays
 
 ## 4. 日历渲染的数据流
 
-`renderer.js` 中的 `state` 是页面唯一的可变状态：
+`renderer.js` 中的 `state` 保存主要业务状态，动作规则集中在`calendar-state.js`。渲染快照与输入节流另有内部状态：
 
 | 字段 | 含义 |
 | --- | --- |
@@ -79,10 +82,10 @@ calendar-core → interaction-core → translations → holidays
 2. 并行刷新画面涉及的年份；请求完成后，只有渲染序号仍是最新值才重绘。
 
 第二步的序号检查解决了常见竞态：用户快速翻到 10 月后，较慢的 9 月网络请求可能才返回。
-如果不比较 `renderVersion`，旧请求会错误地把页面重新画成 9 月。
+渲染器始终读取当前状态；比较 `renderVersion` 防止旧调用触发多余重绘，而不是依赖旧月份快照绘制。
 
 日期格先写进 `DocumentFragment`，再用 `replaceChildren` 一次替换。它的作用类似先在桌面上
-排好 42 张卡片，再整体放进展示框，避免每放一张都让浏览器重新计算布局。
+排好 42 张卡片，再整体放进展示框，使DOM提交集中。浏览器并不保证每次插入都会计算布局。
 
 ## 5. 节日、休假和补班为什么分开
 

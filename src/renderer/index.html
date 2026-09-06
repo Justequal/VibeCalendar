@@ -78,11 +78,18 @@
     </div>
   </div>
 
-  <!-- 加载顺序：领域逻辑与词典 → 数据服务与独立功能控制器 → 页面渲染。 -->
+  <!--
+    普通script按书写顺序执行；这里没有打包器替我们推导依赖。
+    静态节日表 → 日期核心 → 状态转换；数据适配依赖日期核心，服务依赖适配器。
+    renderer最后加载，才可同时访问DOM节点和前面各模块暴露的API。
+    阅读入口：docs/learning/01-page.md；新增模块时同步维护此顺序及浏览器入口测试。
+  -->
   <script src="festival-dates.js"></script>
   <script src="calendar-core.js"></script>
+  <script src="calendar-state.js"></script>
   <script src="interaction-core.js"></script>
   <script src="translations.js"></script>
+  <script src="holiday-data.js"></script>
   <script src="holidays.js"></script>
   <script src="update-controller.js"></script>
   <script src="renderer.js"></script>

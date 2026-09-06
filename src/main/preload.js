@@ -1,4 +1,6 @@
 /**
+ * 教学入口：docs/learning/06-desktop.md。invoke表示一次请求与响应，事件订阅表示持续通知；取消订阅必须使用同一个监听器引用。
+ *
  * Electron 预加载脚本（Preload Script）。
  *
  * 运行在隔离的上下文环境中，通过 contextBridge 安全地将主进程受控能力

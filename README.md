@@ -5,6 +5,14 @@
 
 VibeCalendar 是一款轻量的桌面月历，使用 Electron 与原生 HTML、CSS、JavaScript 构建。它专注于快速查看日期、中国法定节假日和调休安排，并以简约、清晰的深色桌面挂件形式呈现。
 
+## 教学项目入口
+
+本项目同时用于循序学习桌面应用开发。功能保持不变，学习重点是清晰职责、可读代码和广泛认识技术方法。
+
+从[八阶段学习路径](docs/learning/README.md)开始；运行 `npm run learn` 执行六个离线实验，或用 `npm run learn -- 03` 选择数据适配实验。实验带断言并纳入自动测试，不进入安装包。
+
+新增模块：`calendar-state.js`负责动作到状态的转换，`holiday-data.js`负责外部数据规范化，`holidays.js`负责请求与缓存。
+
 ## 主要功能
 
 - 固定 6 × 7 日期网格，连续展示相邻月份日期
@@ -57,7 +65,7 @@ Preload 文件后，需要停止并重新启动开发命令。
 | `npm run pack` | 生成未安装的应用目录 |
 | `npm run build` | 在 `dist/` 生成 Windows NSIS 安装包和更新元数据 |
 
-第一次阅读项目建议从 [代码阅读指南](docs/CODE_WALKTHROUGH.md) 开始；完整开发、验证和排错
+第一次阅读项目建议从 [递进学习路径](docs/learning/README.md) 开始；完整开发、验证和排错
 流程见 [开发指南](docs/DEVELOPMENT.md)。
 
 ## 项目结构
@@ -79,7 +87,9 @@ VibeCalendar/
 │   ├── renderer/
 │   │   ├── calendar-core.js     # 无副作用的日期领域计算
 │   │   ├── interaction-core.js  # 滚轮单位换算与行数累计
-│   │   ├── holidays.js          # 节假日请求、校验、缓存与降级
+│   │   ├── calendar-state.js    # 纯状态转换与动作规则
+│   │   ├── holiday-data.js      # 外部数据校验与统一契约
+│   │   ├── holidays.js          # 节假日请求、缓存与降级
 │   │   ├── translations.js      # 中英文用户界面文案
 │   │   ├── update-controller.js # 版本、检查更新和公告弹层交互
 │   │   ├── renderer.js          # 日历状态、DOM 渲染与输入事件

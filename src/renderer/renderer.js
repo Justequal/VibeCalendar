@@ -1,4 +1,6 @@
 /**
+ * 教学入口：docs/learning/01-page.md。输入事件 → CalendarState转换 → 渲染；存储与DOM副作用留在控制器。
+ *
  * 日历界面控制器。
  *
  * calendar-core.js 负责日期计算，holidays.js 负责数据获取；本文件只维护界面
@@ -43,9 +45,10 @@
     releaseClose: document.getElementById('release-close-btn')
   };
 
-  // 页面唯一可变状态。visibleDate 是当前 6×7 窗口的锚点，而不是“选中的日期”；
-  // renderVersion 是异步请求序号，用于阻止较早月份的慢请求覆盖后来切换的月份。
-  const state = {
+  // 页面业务状态；渲染快照和输入节流也各自保存内部状态。
+  // visibleDate 是当前 6×7 窗口的锚点，而不是“选中的日期”；
+  // renderVersion 是异步请求序号，只有最新调用可以在请求完成后要求重绘。
+  let state = {
     visibleDate: CalendarCore.startOfMonth(new Date()),
     startOnMonday: readBooleanPreference(STORAGE_KEYS.startOnMonday, true),
     language: readLanguagePreference(),
@@ -261,7 +264,8 @@
 
   /**
    * 使用当前缓存同步绘制完整界面。DocumentFragment 是内存中的临时节点容器：
-   * 42 个日期先在内存中创建，再一次替换旧网格，减少反复触发布局计算。
+   * 42 个日期先组装，再一次替换旧网格，使DOM提交集中在一个位置。
+   * 这不意味着逐个append必然触发42次布局；布局时机由浏览器决定。
    */
   function renderCalendarGrid() {
     const year = state.visibleDate.getFullYear();
@@ -271,7 +275,9 @@
       state.startOnMonday
     );
     const today = new Date();
-    const holidaysByYear = new Map([...new Set(cells.map((cell) => cell.year))]
+    // map提取年份，Set去重，Map保存每年的只读快照：跨年窗口也只读每年一次。
+    const visibleYears = [...new Set(cells.map((cell) => cell.year))];
+    const holidaysByYear = new Map(visibleYears
       .map((visibleYear) => [visibleYear, CalendarCore.isSupportedYear(visibleYear)
         ? window.holidayManager.getHolidays(visibleYear) : emptyHolidays]));
     const renderKey = [
@@ -279,9 +285,11 @@
       state.language, state.startOnMonday,
       CalendarCore.toDateKey(today.getFullYear(), today.getMonth(), today.getDate())
     ].join(':');
-    if (renderedGrid?.key === renderKey && [...holidaysByYear].every(
+    // 数据服务替换整个冻结快照，因此引用相同就表示该年的数据没有变化。
+    const hasSameSnapshot = renderedGrid?.key === renderKey && [...holidaysByYear].every(
       ([visibleYear, data]) => renderedGrid.holidays.get(visibleYear) === data
-    )) return holidaysByYear;
+    );
+    if (hasSameSnapshot) return holidaysByYear;
     const dateFormatter = getAccessibleDateFormatter();
 
     elements.monthYear.textContent = CalendarCore.getMonthLabel(
@@ -320,18 +328,25 @@
     )));
 
     if (version === state.renderVersion) {
+      // 只有最新调用可以要求重绘；网格函数随后再判断快照是否真的变化。
       renderCalendarGrid();
     }
   }
 
   function moveMonth(offset) {
     // 只改锚点并走统一渲染入口，按钮和键盘不会形成两套日期切换逻辑。
-    state.visibleDate = CalendarCore.addMonths(state.visibleDate, offset);
+    state = CalendarState.transition(state, { type: 'move-month', offset });
     renderCalendar();
   }
 
   function moveWeek(offset) {
-    state.visibleDate = CalendarCore.addDays(state.visibleDate, Math.max(-4_000_000, Math.min(4_000_000, offset * 7)));
+    state = CalendarState.transition(state, { type: 'move-week', offset });
+    renderCalendar();
+  }
+
+  /** 按钮和快捷键复用同一动作；读取时钟是控制器的责任。 */
+  function goToday() {
+    state = CalendarState.transition(state, { type: 'go-today', now: new Date() });
     renderCalendar();
   }
 
@@ -367,22 +382,19 @@
     });
     window.addEventListener('online', () => void renderCalendar({ retryFallback: true }));
     elements.toggleWeek.addEventListener('click', () => {
-      state.startOnMonday = !state.startOnMonday;
+      state = CalendarState.transition(state, { type: 'toggle-week-start' });
       saveBooleanPreference(STORAGE_KEYS.startOnMonday, state.startOnMonday);
       renderCalendar();
     });
 
     elements.languageToggle.addEventListener('click', () => {
-      state.language = state.language === 'zh-CN' ? 'en' : 'zh-CN';
+      state = CalendarState.transition(state, { type: 'toggle-language' });
       saveLanguagePreference(state.language);
       updateClock();
       renderCalendar();
     });
 
-    elements.goToday.addEventListener('click', () => {
-      state.visibleDate = CalendarCore.startOfMonth(new Date());
-      renderCalendar();
-    });
+    elements.goToday.addEventListener('click', goToday);
 
     elements.previousMonth.addEventListener('click', () => moveMonth(-1));
     elements.nextMonth.addEventListener('click', () => moveMonth(1));
@@ -425,8 +437,7 @@
       }
       if (event.key.toLowerCase() === 't') {
         event.preventDefault();
-        state.visibleDate = CalendarCore.startOfMonth(new Date());
-        renderCalendar();
+        goToday();
       }
     });
   }
