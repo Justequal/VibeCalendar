@@ -258,7 +258,6 @@ h1 {
 .day:hover {
   background: rgba(148, 163, 184, 0.12);
   border-color: rgba(148, 163, 184, 0.26);
-  transform: translateY(-1px);
 }
 
 .day .date-num {
@@ -266,10 +265,14 @@ h1 {
   font-weight: 500;
 }
 
-/* 非本月的日期（变暗） */
-.day.off-month:not(.today):not(.is-festival):not(.is-day-off):not(.is-makeup-workday) {
-  opacity: 0.38;
-  filter: saturate(0.72);
+/* 所有非当月日期统一弱化，节假日徽标和今天标识仍保留各自语义。 */
+.day.off-month {
+  opacity: 0.32;
+  filter: saturate(0.5);
+}
+
+.day:not(.off-month) .date-num {
+  font-weight: 700;
 }
 
 /* 普通周末与法定休假使用同一套玫瑰色；休假日另用徽标说明。 */

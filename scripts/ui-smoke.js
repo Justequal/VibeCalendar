@@ -371,6 +371,36 @@ async function run() {
     `);
     assert.deepEqual(returnFromSleep, { today: '2026-10-02', title: 'September 2026', clock: '10:30:00' });
 
+    const pointerMonth = await invoke(window, `
+      window.smokeNow = new NativeDate(2026, 11, 1).getTime();
+      document.getElementById('go-today-btn').click();
+      const grid = document.getElementById('calendar-grid');
+      const first = grid.firstElementChild;
+      const target = grid.querySelector('[data-date="2027-01-01"]');
+      const rect = target.getBoundingClientRect();
+      const position = { clientX: rect.x + rect.width / 2, clientY: rect.y + rect.height / 2, bubbles: true };
+      target.querySelector('.date-num').dispatchEvent(new PointerEvent('pointermove', position));
+      const title = document.getElementById('month-year').textContent;
+      const stable = first === grid.firstElementChild;
+      const correctClasses = [...grid.children].every(cell => cell.classList.contains('off-month') !== cell.dataset.date.startsWith('2027-01'));
+      const dimmed = Number(getComputedStyle(grid.querySelector('[data-date="2026-12-01"]')).opacity);
+      const active = Number(getComputedStyle(target).opacity);
+      target.dispatchEvent(new WheelEvent('wheel', { ...position, deltaY: 120 }));
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const underPointer = document.elementFromPoint(position.clientX, position.clientY).closest('.day');
+      const [year, month] = underPointer.dataset.date.split('-').map(Number);
+      const followsScroll = document.getElementById('month-year').textContent === CalendarCore.getMonthLabel(year, month - 1, 'en')
+        && !underPointer.classList.contains('off-month');
+      grid.dispatchEvent(new PointerEvent('pointerleave'));
+      document.getElementById('next-month').click();
+      const followsNavigation = document.getElementById('month-year').textContent === CalendarCore.getMonthLabel(
+        CalendarCore.addMonths(CalendarCore.createDate(year, month - 1, 1), 1).getFullYear(),
+        CalendarCore.addMonths(CalendarCore.createDate(year, month - 1, 1), 1).getMonth(), 'en');
+      return { title, stable, correctClasses, dimmed, active, followsScroll, followsNavigation };
+    `);
+    assert.deepEqual(pointerMonth, { title: 'January 2027', stable: true, correctClasses: true,
+      dimmed: 0.32, active: 1, followsScroll: true, followsNavigation: true });
+
     const dateBounds = await invoke(window, `
       window.smokeNow = CalendarCore.createDate(1, 0, 1).getTime();
       document.getElementById('go-today-btn').click();

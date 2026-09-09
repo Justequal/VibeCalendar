@@ -101,6 +101,27 @@
   let renderedWeekdayKey;
   let renderedGrid;
   let clockDateKey;
+  let pointerPosition;
+  let displayedMonth = state.visibleDate;
+
+  // 月份强调独立于六周窗口锚点，悬停跨月时只更新样式，不移动鼠标下的日期。
+  function syncDisplayedMonth(date = displayedMonth) {
+    displayedMonth = date;
+    const monthKey = CalendarCore.toDateKey(date.getFullYear(), date.getMonth(), 1).slice(0, 7);
+    elements.monthYear.textContent = CalendarCore.getMonthLabel(date.getFullYear(), date.getMonth(), state.language);
+    for (const cell of elements.calendarGrid.children) {
+      cell.classList.toggle('off-month', !cell.dataset.date?.startsWith(monthKey));
+    }
+  }
+
+  function syncPointerMonth() {
+    if (!pointerPosition || updateController.isReleaseNotesOpen()) return;
+    const cell = document.elementFromPoint(pointerPosition.x, pointerPosition.y)?.closest('.day[data-date]');
+    if (!cell || !elements.calendarGrid.contains(cell)) return;
+    const [year, month, day] = cell.dataset.date.split('-').map(Number);
+    if (displayedMonth.getFullYear() === year && displayedMonth.getMonth() === month - 1) return;
+    syncDisplayedMonth(CalendarCore.createDate(year, month - 1, day));
+  }
 
   function getAccessibleDateFormatter() {
     if (!accessibleDateFormatters.has(state.language)) {
@@ -289,14 +310,12 @@
     const hasSameSnapshot = renderedGrid?.key === renderKey && [...holidaysByYear].every(
       ([visibleYear, data]) => renderedGrid.holidays.get(visibleYear) === data
     );
-    if (hasSameSnapshot) return holidaysByYear;
+    if (hasSameSnapshot) {
+      syncPointerMonth();
+      return holidaysByYear;
+    }
     const dateFormatter = getAccessibleDateFormatter();
 
-    elements.monthYear.textContent = CalendarCore.getMonthLabel(
-      year,
-      month,
-      state.language
-    );
     renderLocalizedControls();
     renderLegend(cells, holidaysByYear);
     renderWeekdays();
@@ -309,6 +328,8 @@
       holidaysByYear
     )));
     elements.calendarGrid.replaceChildren(fragment);
+    syncDisplayedMonth();
+    syncPointerMonth();
     renderedGrid = { key: renderKey, holidays: holidaysByYear };
     return holidaysByYear;
   }
@@ -335,18 +356,21 @@
 
   function moveMonth(offset) {
     // 只改锚点并走统一渲染入口，按钮和键盘不会形成两套日期切换逻辑。
-    state = CalendarState.transition(state, { type: 'move-month', offset });
+    state = CalendarState.transition({ ...state, visibleDate: displayedMonth }, { type: 'move-month', offset });
+    syncDisplayedMonth(state.visibleDate);
     renderCalendar();
   }
 
   function moveWeek(offset) {
     state = CalendarState.transition(state, { type: 'move-week', offset });
+    syncDisplayedMonth(state.visibleDate);
     renderCalendar();
   }
 
   /** 按钮和快捷键复用同一动作；读取时钟是控制器的责任。 */
   function goToday() {
     state = CalendarState.transition(state, { type: 'go-today', now: new Date() });
+    syncDisplayedMonth(state.visibleDate);
     renderCalendar();
   }
 
@@ -372,6 +396,11 @@
   }
 
   function bindEvents() {
+    elements.calendarGrid.addEventListener('pointermove', (event) => {
+      pointerPosition = { x: event.clientX, y: event.clientY };
+      syncPointerMonth();
+    });
+    elements.calendarGrid.addEventListener('pointerleave', () => { pointerPosition = null; });
     const refreshOnReturn = () => {
       updateClock();
       void renderCalendar();
@@ -407,6 +436,9 @@
     let wheelFrame = 0;
     elements.app.addEventListener('wheel', (event) => {
       if (event.ctrlKey || event.deltaY === 0 || updateController.isReleaseNotesOpen()) return;
+      if (elements.calendarGrid.contains(event.target)) {
+        pointerPosition = { x: event.clientX, y: event.clientY };
+      }
 
       const wholeRows = wheelRows.push(event.deltaY, event.deltaMode);
       if (wholeRows === 0) return;
