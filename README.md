@@ -178,3 +178,7 @@ winget install Justequal.VibeCalendar
 项目采用轻量主干开发：`main` 是唯一长期分支，功能和修复通过短期分支与 Pull Request 合并。提交前请运行 `npm run verify`，并在行为变化时同步更新测试和文档。详细约定见 [贡献指南](CONTRIBUTING.md)，版本变化见 [CHANGELOG](CHANGELOG.md)。
 
 项目使用 [MIT License](LICENSE)。
+
+### 年月选择与系统托盘
+
+点击顶部年月标题，输入年份并选择月份，点击“跳转”即可查看对应月历；Esc 或“取消”关闭选择框。点击窗口 × 将收起到系统托盘，点击托盘图标恢复日历，右键选择“退出 / Quit”彻底关闭软件。

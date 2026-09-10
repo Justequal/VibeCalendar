@@ -531,3 +531,14 @@ button:focus-visible {
     animation-iteration-count: 1 !important;
   }
 }
+
+.month-year-btn { background: transparent; border: none; color: inherit; font: inherit; letter-spacing: inherit; cursor: pointer; border-radius: 6px; padding: 2px 6px; }
+.month-year-btn:hover { background: var(--surface-raised); color: var(--accent-hover); }
+#month-picker { margin: auto; width: 280px; padding: 22px; border-radius: 16px; border: 1px solid var(--glass-border); background: var(--surface-color); color: var(--text-primary); color-scheme: dark; }
+#month-picker::backdrop { background: rgba(0,0,0,.6); }
+#month-picker h2 { font-size: 17px; margin-bottom: 18px; }
+#month-picker label { display: flex; align-items: center; justify-content: space-between; margin: 12px 0; }
+#month-picker input, #month-picker select { width: 140px; padding: 8px; border-radius: 6px; border: 1px solid var(--glass-border); background: var(--bg-color); color: var(--text-primary); }
+.picker-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.picker-actions button { padding: 7px 14px; border: 1px solid var(--glass-border); border-radius: 6px; background: var(--surface-raised); color: var(--text-primary); cursor: pointer; }
+#picker-apply { background: #4f46e5; }

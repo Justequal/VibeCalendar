@@ -8,7 +8,8 @@
   root.VibeCalendarTranslations = Object.freeze({
     'zh-CN': Object.freeze({
       appTitle: 'VibeCalendar',
-      close: '关闭窗口',
+      close: '最小化到托盘',
+      selectMonth: '选择年月', year: '年份', month: '月份', cancel: '取消', apply: '跳转',
       previousMonth: '上个月（←）',
       nextMonth: '下个月（→）',
       calendar: '月历',
@@ -57,7 +58,8 @@
     }),
     en: Object.freeze({
       appTitle: 'VibeCalendar',
-      close: 'Close window',
+      close: 'Minimize to tray',
+      selectMonth: 'Select year and month', year: 'Year', month: 'Month', cancel: 'Cancel', apply: 'Go',
       previousMonth: 'Previous month (←)',
       nextMonth: 'Next month (→)',
       calendar: 'Monthly calendar',

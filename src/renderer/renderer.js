@@ -23,6 +23,9 @@
   const elements = {
     app: document.getElementById('app-container'),
     monthYear: document.getElementById('month-year'),
+    monthPicker: document.getElementById('month-picker'),
+    pickerYear: document.getElementById('picker-year'),
+    pickerMonth: document.getElementById('picker-month'),
     calendarGrid: document.getElementById('calendar-grid'),
     calendarLegend: document.getElementById('calendar-legend'),
     festivalLegend: document.getElementById('festival-legend'),
@@ -115,7 +118,7 @@
   }
 
   function syncPointerMonth() {
-    if (!pointerPosition || updateController.isReleaseNotesOpen()) return;
+    if (!pointerPosition || (updateController.isReleaseNotesOpen() || elements.monthPicker.open)) return;
     const cell = document.elementFromPoint(pointerPosition.x, pointerPosition.y)?.closest('.day[data-date]');
     if (!cell || !elements.calendarGrid.contains(cell)) return;
     const [year, month, day] = cell.dataset.date.split('-').map(Number);
@@ -142,6 +145,17 @@
     document.documentElement.lang = state.language;
     document.title = text.appTitle;
 
+    elements.monthYear.title = text.selectMonth;
+    elements.monthYear.setAttribute('aria-label', text.selectMonth);
+    for (const [id, key] of [['month-picker-title', 'selectMonth'], ['year-label', 'year'], ['month-label', 'month'], ['picker-cancel', 'cancel'], ['picker-apply', 'apply']]) {
+      document.getElementById(id).textContent = text[key];
+    }
+    elements.pickerMonth.replaceChildren(...Array.from({ length: 12 }, (_, month) => {
+      const option = document.createElement('option');
+      option.value = month;
+      option.textContent = new Intl.DateTimeFormat(state.language, { month: 'long' }).format(CalendarCore.createDate(2026, month, 1));
+      return option;
+    }));
     elements.previousMonth.setAttribute('aria-label', text.previousMonth);
     elements.previousMonth.title = text.previousMonth;
     elements.nextMonth.setAttribute('aria-label', text.nextMonth);
@@ -396,6 +410,23 @@
   }
 
   function bindEvents() {
+    elements.monthYear.addEventListener('click', () => {
+      pointerPosition = null;
+      elements.pickerYear.value = displayedMonth.getFullYear();
+      elements.pickerMonth.value = displayedMonth.getMonth();
+      elements.monthPicker.showModal();
+      elements.pickerYear.focus();
+      elements.pickerYear.select();
+    });
+    document.getElementById('picker-cancel').addEventListener('click', () => elements.monthPicker.close());
+    elements.monthPicker.addEventListener('close', () => elements.monthYear.focus());
+    document.getElementById('month-picker-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      state = CalendarState.transition(state, { type: 'select-month', year: elements.pickerYear.valueAsNumber, month: Number(elements.pickerMonth.value) });
+      syncDisplayedMonth(state.visibleDate);
+      void renderCalendar();
+      elements.monthPicker.close();
+    });
     elements.calendarGrid.addEventListener('pointermove', (event) => {
       pointerPosition = { x: event.clientX, y: event.clientY };
       syncPointerMonth();
@@ -435,7 +466,7 @@
     let queuedWheelRows = 0;
     let wheelFrame = 0;
     elements.app.addEventListener('wheel', (event) => {
-      if (event.ctrlKey || event.deltaY === 0 || updateController.isReleaseNotesOpen()) return;
+      if (event.ctrlKey || event.deltaY === 0 || (updateController.isReleaseNotesOpen() || elements.monthPicker.open)) return;
       if (elements.calendarGrid.contains(event.target)) {
         pointerPosition = { x: event.clientX, y: event.clientY };
       }
@@ -450,12 +481,12 @@
         const rows = queuedWheelRows;
         queuedWheelRows = 0;
         wheelFrame = 0;
-        if (rows !== 0 && !updateController.isReleaseNotesOpen()) moveWeek(rows);
+        if (rows !== 0 && !(updateController.isReleaseNotesOpen() || elements.monthPicker.open)) moveWeek(rows);
       });
     }, { passive: true });
 
     document.addEventListener('keydown', (event) => {
-      if (updateController.isReleaseNotesOpen()) return;
+      if ((updateController.isReleaseNotesOpen() || elements.monthPicker.open)) return;
       // Ctrl/Alt/Command 组合键属于系统或应用快捷键，不能被单字母 T 意外截获。
       if (event.ctrlKey || event.metaKey || event.altKey) return;
 

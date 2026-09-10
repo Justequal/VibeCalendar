@@ -23,7 +23,7 @@
     <div class="calendar-header">
       <button id="prev-month" class="nav-btn" aria-label="上个月" title="上个月（←）">←</button>
       <div class="header-center">
-        <h1 id="month-year" aria-live="polite" aria-atomic="true">年月</h1>
+        <h1><button id="month-year" class="month-year-btn" aria-haspopup="dialog" aria-live="polite" aria-atomic="true">年月</button></h1>
         <div class="header-controls">
           <!-- 切换一星期的首日 (周一/周日) 按钮 -->
           <button id="toggle-week-btn" class="toggle-week-btn" aria-label="切换一周起始日">首日：周一</button>
@@ -63,6 +63,14 @@
       </div>
     </div>
 
+    <dialog id="month-picker" aria-labelledby="month-picker-title">
+      <form id="month-picker-form">
+        <h2 id="month-picker-title">选择年月</h2>
+        <label><span id="year-label">年份</span><input id="picker-year" type="number" min="1" max="9999" step="1" required></label>
+        <label><span id="month-label">月份</span><select id="picker-month"></select></label>
+        <div class="picker-actions"><button id="picker-cancel" type="button">取消</button><button id="picker-apply" type="submit">跳转</button></div>
+      </form>
+    </dialog>
     <!-- 当前版本说明模态弹窗 -->
     <div id="release-modal" class="release-modal" hidden>
       <section class="release-card" role="dialog" aria-modal="true" aria-labelledby="release-title" aria-describedby="release-notes">

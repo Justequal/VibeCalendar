@@ -98,6 +98,21 @@ async function run() {
     assert.match(initial.clock, /^\d{2}:\d{2}:\d{2}$/);
     assert.equal(initial.todayCount, 1);
     assert.equal(initial.pageFits, true);
+    const picker = await invoke(window, `
+      document.getElementById('month-year').click();
+      const dialog = document.getElementById('month-picker');
+      const opened = dialog.open;
+      document.getElementById('picker-year').value = '2024';
+      document.getElementById('picker-month').value = '1';
+      document.getElementById('month-picker-form').requestSubmit();
+      const result = { opened, closed: !dialog.open, title: document.getElementById('month-year').textContent, leap: !!document.querySelector('[data-date="2024-02-29"]') };
+      document.getElementById('go-today-btn').click();
+      return result;
+    `);
+    assert.equal(picker.opened, true);
+    assert.equal(picker.closed, true);
+    assert.match(picker.title, /2024/);
+    assert.equal(picker.leap, true);
     assert.equal(backgroundRequests, 0, '首屏不得发起后台网络请求');
 
     // 可控单调时钟仅传给测试代理；生产实例保持真实60秒保护。

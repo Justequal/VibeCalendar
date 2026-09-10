@@ -41,6 +41,8 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
       this.minimized = false;
       this.restoreCount = (this.restoreCount || 0) + 1;
     }
+    hide() { this.hideCount = (this.hideCount || 0) + 1; }
+    on(event, handler) { this.windowListeners.set(event, handler); }
     setAlwaysOnTop() {}
     once(event, handler) { this.windowListeners.set(event, handler); }
   }
@@ -48,7 +50,17 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
   FakeBrowserWindow.getAllWindows = () => FakeBrowserWindow.instances;
   FakeBrowserWindow.fromWebContents = () => FakeBrowserWindow.instances[0];
 
+  const trays = [];
+  class FakeTray {
+    constructor() { this.listeners = new Map(); trays.push(this); }
+    setToolTip() {}
+    setContextMenu(menu) { this.menu = menu; }
+    on(event, handler) { this.listeners.set(event, handler); }
+    destroy() { this.destroyed = true; }
+  }
   const electron = {
+    Tray: FakeTray,
+    Menu: { buildFromTemplate: (items) => items },
     app: {
       disableHardwareAcceleration: () => {},
       getVersion: () => '1.1.1',
@@ -133,6 +145,7 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
   }
 
   return {
+    trays,
     appListeners,
     ipcHandlers,
     updateCalls,
@@ -257,4 +270,23 @@ test('更新 IPC 只接受本地日历页面，并正确区分公告与手动检
     () => subject.ipcHandlers.get('app:get-version')(untrustedEvent),
     /非应用页面/
   );
+});
+
+test('关闭隐藏到托盘，托盘恢复，退出允许关闭并清理图标', async () => {
+  const subject = await loadMainProcess();
+  let prevented = 0;
+  const close = () => subject.window.windowListeners.get('close')({ preventDefault: () => prevented++ });
+  close();
+  assert.equal(prevented, 1);
+  assert.equal(subject.window.hideCount, 1);
+  assert.equal(subject.window.destroyed, false);
+  subject.trays[0].listeners.get('click')();
+  assert.equal(subject.window.showCount, 1);
+  subject.trays[0].menu[2].click();
+  assert.equal(subject.getQuitCalls(), 1);
+  subject.appListeners.get('before-quit')();
+  close();
+  assert.equal(prevented, 1);
+  subject.appListeners.get('will-quit')();
+  assert.equal(subject.trays[0].destroyed, true);
 });

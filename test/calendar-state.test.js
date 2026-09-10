@@ -34,3 +34,17 @@ test('极端星期偏移仍限制在支持年份内', () => {
   assert.equal(transition(initial(), { type: 'move-week', offset: 1e20 }).visibleDate.getFullYear(), 9999);
   assert.equal(transition(initial(), { type: 'move-week', offset: -1e20 }).visibleDate.getFullYear(), 1);
 });
+
+test('选择年月支持闰年与边界，拒绝无效年月', () => {
+  const state = { visibleDate: new Date(2026, 8, 30), language: 'zh-CN', startOnMonday: true };
+  const { transition } = require('../src/renderer/calendar-state');
+  for (const year of [1, 2024, 9999]) {
+    const next = transition(state, { type: 'select-month', year, month: 1 });
+    assert.equal(next.visibleDate.getFullYear(), year);
+    assert.equal(next.visibleDate.getMonth(), 1);
+    assert.equal(next.visibleDate.getDate(), 1);
+  }
+  for (const [year, month] of [[0, 0], [10000, 0], [2026, 12], [NaN, 0], [2026, 1.5]]) {
+    assert.equal(transition(state, { type: 'select-month', year, month }), state);
+  }
+});

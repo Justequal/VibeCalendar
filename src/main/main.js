@@ -6,7 +6,7 @@
  * 主进程只负责窗口生命周期和操作系统能力；日期、节假日和 DOM 逻辑全部留在
  * renderer 目录。渲染进程不需要 Node.js 权限，因此保持隔离与沙箱开启。
  */
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { fileURLToPath } = require('url');
@@ -28,6 +28,19 @@ const IPC_CHANNELS = Object.freeze({
 });
 let ipcHandlersRegistered = false;
 let mainWindow = null;
+let tray = null;
+let isQuitting = false;
+function createTray() {
+  tray = new Tray(path.join(__dirname, '../assets/icon.ico'));
+  tray.setToolTip('VibeCalendar');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '显示日历 / Show calendar', click: revealMainWindow },
+    { type: 'separator' },
+    { label: '退出 / Quit', click: () => app.quit() }
+  ]));
+  tray.on('click', revealMainWindow);
+  tray.on('double-click', revealMainWindow);
+}
 
 // 禁用硬件加速：防止在特定 Windows 显卡环境下 GPU 进程崩溃 (0xC0000005)
 app.disableHardwareAcceleration();
@@ -167,6 +180,9 @@ function createWindow() {
     }, 1500);
   });
 
+  mainWindow.on('close', (event) => {
+    if (!isQuitting && tray) { event.preventDefault(); mainWindow.hide(); }
+  });
   // 加载前端页面
   mainWindow.loadFile(RENDERER_ENTRY_PATH);
   enableLivePreview(mainWindow);
@@ -192,6 +208,7 @@ if (!hasSingleInstanceLock) {
   app.whenReady().then(() => {
     console.log('🚀 Electron app.whenReady 完成，开始创建窗口...');
     registerIpcHandlers();
+    createTray();
     const createdWindow = createWindow();
     // 首屏优先：一分钟内不启动更新检查或加载更新库。退出时清理计时器，
     // unref防止仅剩后台定时器时阻止进程结束。安装能力必须保留在Electron主进程。
@@ -213,4 +230,5 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => clearTimeout(backgroundTimer));
+app.on('before-quit', () => { isQuitting = true; clearTimeout(backgroundTimer); });
+app.on('will-quit', () => { tray?.destroy(); tray = null; });

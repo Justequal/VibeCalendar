@@ -38,6 +38,9 @@
    */
   function transition(state, action) {
     switch (action.type) {
+      case 'select-month':
+        if (!CalendarCore.isSupportedYear(action.year) || !Number.isInteger(action.month) || action.month < 0 || action.month > 11) return state;
+        return { ...state, visibleDate: CalendarCore.createDate(action.year, action.month, 1) };
       case 'move-month':
         return { ...state, visibleDate: CalendarCore.addMonths(state.visibleDate, action.offset) };
       case 'move-week': {
