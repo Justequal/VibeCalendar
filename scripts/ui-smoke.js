@@ -35,6 +35,7 @@ async function run() {
   await app.whenReady();
 
   const currentVersion = packageMetadata.version;
+  ipcMain.handle('window:hide-to-tray', event => { BrowserWindow.fromWebContents(event.sender).hide(); return { hidden: true }; });
   ipcMain.handle('app:get-version', () => currentVersion);
   ipcMain.handle('updates:get-current-release', () => ({
     version: currentVersion,
@@ -113,9 +114,9 @@ async function run() {
     assert.equal(picker.closed, true);
     assert.match(picker.title, /2024/);
     assert.equal(picker.leap, true);
-    assert.equal(backgroundRequests, 0, '首屏不得发起后台网络请求');
+    // 后台线程现在在首帧之后立即启动，网络仍由测试会话拦截。
 
-    // 可控单调时钟仅传给测试代理；生产实例保持真实60秒保护。
+    // 使用真实Worker验证启动后立即工作，无一分钟等待。
     // 使用真实Web Worker和同一套离线拦截，验证它能在沙箱/CSP下加载并完成工作。
     const workerResult = await invoke(window, `
       let elapsed = 0;
@@ -125,11 +126,7 @@ async function run() {
         now: () => elapsed,
         createWorker: () => { created += 1; return new Worker('holiday-worker.js'); }
       });
-      await manager.fetchHolidays(2026);
-      elapsed = 59999;
-      await manager.fetchHolidays(2026, { retryFallback: true });
       const before = created;
-      elapsed = 60000;
       const holidays = await manager.fetchHolidays(2026);
       const result = { before, after: created, holiday: holidays['2026-01-01']?.name, frozen: Object.isFrozen(holidays) };
       manager.dispose();

@@ -1,16 +1,14 @@
 /**
- * 主线程的轻量代理：首分钟只返回本地快照，不创建Worker、不发网络请求。
- * performance.now是单调时钟，修改系统日期不会提前解除启动保护。
+ * 主线程的轻量代理：首帧后立即启动Worker，不设置启动等待。
+ * performance.now只用于线程故障后的重试冷却。
  * 首屏保留少量同步缓存读取；网络JSON解析和数据合并交给Worker。
  */
 (function exposeBackgroundHolidays(root) {
   function createBackgroundHolidayManager({
     local = root.holidayManager,
     createWorker = () => new Worker('holiday-worker.js'),
-    now = () => performance.now(),
-    delay = 60_000
+    now = () => performance.now()
   } = {}) {
-    const deadline = now() + delay;
     let worker;
     let sequence = 0;
     let retryAfter = 0;
@@ -58,7 +56,7 @@
 
     function fetchHolidays(year, options) {
       year = root.HolidayData.normalizeYear(year);
-      if (disposed || now() < deadline || now() < retryAfter) return Promise.resolve(local.getHolidays(year));
+      if (disposed || now() < retryAfter) return Promise.resolve(local.getHolidays(year));
       if (pendingRequests.has(year)) return pendingRequests.get(year).promise;
       const entry = local.getCachedEntry(year);
       const retryDegraded = options?.retryFallback && ['local-fallback', 'stale-cache', 'remote-single'].includes(entry?.source);

@@ -21,6 +21,10 @@ const IPC_CHANNELS = Object.freeze({
   updateStatus: 'updates:status'
 });
 
+contextBridge.exposeInMainWorld('appWindow', Object.freeze({
+  hideToTray: () => ipcRenderer.invoke('window:hide-to-tray')
+}));
+
 // 向渲染层 window 暴露 appUpdates 命名空间，提供版本查询与更新能力
 contextBridge.exposeInMainWorld('appUpdates', Object.freeze({
   /**

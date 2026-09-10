@@ -46,6 +46,9 @@ jobs:
     - name: Verify Electron interface
       run: npm run test:ui
 
+    - name: Verify desktop lifecycle and update service
+      run: npm run test:desktop
+
     - name: Package release assets
       run: npm run build -- --publish never
 

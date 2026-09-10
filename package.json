@@ -1,6 +1,6 @@
 {
   "name": "vibe-calendar",
-  "version": "1.1.26",
+  "version": "1.1.27",
   "description": "A beautiful, modern open-source desktop calendar",
   "author": "VibeCalendar Contributors",
   "license": "MIT",
@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/Justequal/VibeCalendar/issues"
   },
-  "main": "src/main/main.js",
+  "main": "src/main/bootstrap.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --live-preview",
@@ -20,15 +20,17 @@
     "test": "node scripts/run-tests.js",
     "test:ui": "electron scripts/ui-smoke.js",
     "test:update-network": "electron scripts/update-network-smoke.js",
-    "check:syntax": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/main/release-notes.js && node --check src/main/updater.js && node --check src/renderer/calendar-core.js && node --check src/renderer/interaction-core.js && node --check src/renderer/translations.js && node --check src/renderer/holidays.js && node --check src/renderer/update-controller.js && node --check src/renderer/renderer.js && node --check scripts/extract-release-notes.js && node --check scripts/ui-smoke.js && node --check scripts/update-network-smoke.js && node --check src/renderer/festival-dates.js && node --check scripts/sync-festival-dates.js && node --check scripts/holiday-network-smoke.js && node --check scripts/performance-smoke.js && node --check src/renderer/calendar-state.js && node --check src/renderer/holiday-data.js && node --check scripts/run-lessons.mjs && node --check src/renderer/holiday-background.js && node --check src/renderer/holiday-worker.js",
+    "check:syntax": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/main/release-notes.js && node --check src/main/updater.js && node --check src/renderer/calendar-core.js && node --check src/renderer/interaction-core.js && node --check src/renderer/translations.js && node --check src/renderer/holidays.js && node --check src/renderer/update-controller.js && node --check src/renderer/renderer.js && node --check scripts/extract-release-notes.js && node --check scripts/ui-smoke.js && node --check scripts/update-network-smoke.js && node --check src/renderer/festival-dates.js && node --check scripts/sync-festival-dates.js && node --check scripts/holiday-network-smoke.js && node --check scripts/performance-smoke.js && node --check src/renderer/calendar-state.js && node --check src/renderer/holiday-data.js && node --check scripts/run-lessons.mjs && node --check src/renderer/holiday-background.js && node --check src/renderer/holiday-worker.js && node --check src/main/bootstrap.js && node --check src/main/update-client.js && node --check src/main/update-service.js && node --check scripts/desktop-smoke.js && node --check scripts/packaged-update-smoke.js",
     "verify": "npm run check:syntax && npm test",
-    "verify:full": "npm run verify && npm run test:ui && npm run test:update-network",
+    "verify:full": "npm run verify && npm run test:ui && npm run test:desktop && npm run test:update-network",
     "pack": "electron-builder --dir",
     "build": "electron-builder",
     "sync:festivals": "node scripts/sync-festival-dates.js",
     "test:holiday-network": "node scripts/holiday-network-smoke.js",
     "test:performance": "electron scripts/performance-smoke.js",
-    "learn": "node scripts/run-lessons.mjs"
+    "learn": "node scripts/run-lessons.mjs",
+    "test:desktop": "electron scripts/desktop-smoke.js",
+    "test:packaged-update": "node scripts/packaged-update-smoke.js"
   },
   "engines": {
     "node": ">=20"

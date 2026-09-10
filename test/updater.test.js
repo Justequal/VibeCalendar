@@ -136,7 +136,7 @@ test('安装版显式下载更新，并在完成后等待用户点击安装', as
   assert.equal(subject.getCheckCount(), 1);
   assert.equal(result.status, 'up-to-date');
   assert.equal(subject.autoUpdater.autoDownload, false);
-  assert.equal(subject.autoUpdater.autoInstallOnAppQuit, true);
+  assert.equal(subject.autoUpdater.autoInstallOnAppQuit, false);
   assert.equal(subject.autoUpdater.allowPrerelease, false);
 
   subject.autoUpdater.emit('update-available', { version: '1.1.1' });

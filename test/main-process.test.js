@@ -14,7 +14,6 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
   let quitCalls = 0;
   let watcher;
   let updaterLoads = 0;
-  const backgroundTimers = [];
 
   class FakeBrowserWindow {
     static instances = [];
@@ -27,6 +26,7 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
       this.webContents = {
         setWindowOpenHandler: (handler) => { this.openHandler = handler; },
         on: (event, handler) => this.webContentsListeners.set(event, handler),
+        once: (event, handler) => this.webContentsListeners.set(event, handler),
         reloadIgnoringCache: () => { this.reloadCount = (this.reloadCount || 0) + 1; }
       };
       FakeBrowserWindow.instances.push(this);
@@ -56,6 +56,7 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
     setToolTip() {}
     setContextMenu(menu) { this.menu = menu; }
     on(event, handler) { this.listeners.set(event, handler); }
+    isDestroyed() { return Boolean(this.destroyed); }
     destroy() { this.destroyed = true; }
   }
   const electron = {
@@ -75,6 +76,7 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
     }
   };
   const updater = {
+    dispose() {},
     checkForUpdates: async (...args) => {
       updateCalls.push(args);
       return { status: 'up-to-date', currentVersion: '1.1.1' };
@@ -112,7 +114,7 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
   Module._load = function mockMainDependencies(request, parent, isMain) {
     if (parent?.filename === mainPath) {
       parent.require = function (name) {
-        if (name === './updater') { updaterLoads += 1; return updater; }
+        if (name === './update-client') { updaterLoads += 1; return { createUpdateClient: () => updater }; }
         return Module.prototype.require.call(this, name);
       };
     }
@@ -122,22 +124,12 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
     return originalLoad.call(this, request, parent, isMain);
   };
 
-  const originalSetTimeout = global.setTimeout;
-  global.setTimeout = (callback, delay, ...args) => {
-    if (delay === 60_000) {
-      const timer = { callback, delay, unref() {} };
-      backgroundTimers.push(timer);
-      return timer;
-    }
-    return originalSetTimeout(callback, delay, ...args);
-  };
   if (livePreview) process.argv.push('--live-preview');
   try {
     require(mainPath);
     await new Promise((resolve) => setImmediate(resolve));
   } finally {
     Module._load = originalLoad;
-    global.setTimeout = originalSetTimeout;
     if (livePreview) {
       const argumentIndex = process.argv.lastIndexOf('--live-preview');
       if (argumentIndex >= 0) process.argv.splice(argumentIndex, 1);
@@ -149,7 +141,6 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
     appListeners,
     ipcHandlers,
     updateCalls,
-    backgroundTimers,
     getUpdaterLoads: () => updaterLoads,
     installCalls,
     getReleaseCalls: () => releaseCalls,
@@ -160,7 +151,7 @@ async function loadMainProcess({ livePreview = false, singleInstanceLock = true 
   };
 }
 
-test('主进程先创建窗口，一分钟后才加载更新库并检查', async () => {
+test('主进程首帧显示并立即通过后台代理检查，无固定等待', async () => {
   const subject = await loadMainProcess();
   const window = subject.window;
 
@@ -176,17 +167,19 @@ test('主进程先创建窗口，一分钟后才加载更新库并检查', async
   const trustedEvent = { senderFrame: { url: pathToFileURL(path.resolve(__dirname, '../src/renderer/index.html')).href } };
   assert.deepEqual(subject.ipcHandlers.get('updates:get-state')(trustedEvent), { phase: 'idle' });
   assert.equal(subject.getUpdaterLoads(), 0, '启动状态快照不得提前加载更新库');
-  assert.equal(subject.backgroundTimers[0].delay, 60_000);
-  subject.backgroundTimers[0].callback();
+  assert.equal(window.options.show, false);
+  window.windowListeners.get('ready-to-show')();
+  assert.equal(window.showCount, 1);
+  window.webContentsListeners.get('did-finish-load')();
   assert.equal(subject.updateCalls.length, 1);
   assert.equal(subject.updateCalls[0][0], window);
   assert.equal(subject.updateCalls[0][1], undefined);
 });
 
-test('首分钟内窗口关闭后，不再启动更新检查', async () => {
+test('窗口销毁后不启动后台检查', async () => {
   const subject = await loadMainProcess();
   subject.window.destroyed = true;
-  subject.backgroundTimers[0].callback();
+  subject.window.webContentsListeners.get('did-finish-load')();
   assert.equal(subject.updateCalls.length, 0);
   assert.equal(subject.getUpdaterLoads(), 0);
 });
@@ -234,7 +227,7 @@ test('更新 IPC 只接受本地日历页面，并正确区分公告与手动检
     sender: {}
   };
 
-  assert.equal(subject.ipcHandlers.size, 5);
+  assert.equal(subject.ipcHandlers.size, 6);
   assert.equal(
     subject.ipcHandlers.get('app:get-version')(trustedEvent),
     '1.1.1'
@@ -289,4 +282,14 @@ test('关闭隐藏到托盘，托盘恢复，退出允许关闭并清理图标',
   assert.equal(prevented, 1);
   subject.appListeners.get('will-quit')();
   assert.equal(subject.trays[0].destroyed, true);
+});
+
+test('受信任的托盘IPC隐藏真实目标，拒绝远程页面请求', async () => {
+  const subject = await loadMainProcess();
+  const handler = subject.ipcHandlers.get('window:hide-to-tray');
+  assert.throws(() => handler({ senderFrame: { url: 'https://example.com' } }), /非应用页面/);
+  handler({ senderFrame: { url: pathToFileURL(path.resolve(__dirname, '../src/renderer/index.html')).href } });
+  assert.equal(subject.window.hideCount, 1);
+  subject.window.windowListeners.get('ready-to-show')();
+  assert.equal(subject.window.showCount, undefined, '晚到的首帧不能重新显示已收起窗口');
 });

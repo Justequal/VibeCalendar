@@ -10,16 +10,15 @@ const { app, BrowserWindow, ipcMain, Tray, Menu } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { fileURLToPath } = require('url');
-// 不在创建窗口前加载更新库及其依赖。状态查询也不触发加载，避免页面初始化
-// 的getUpdateState请求绕过延迟；只有一分钟后的任务或用户主动操作才加载。
+// 窗口进程只加载轻量代理，更新库与下载工作由独立后台进程负责。
 let updater;
-const getUpdater = () => (updater ||= require('./updater'));
-let backgroundTimer;
+const getUpdater = () => (updater ||= require('./update-client').createUpdateClient());
 
 const LIVE_PREVIEW_ENABLED = process.argv.includes('--live-preview');
 const RENDERER_DIRECTORY = path.join(__dirname, '../renderer');
 const RENDERER_ENTRY_PATH = path.resolve(RENDERER_DIRECTORY, 'index.html');
 const IPC_CHANNELS = Object.freeze({
+  hideToTray: 'window:hide-to-tray',
   getVersion: 'app:get-version',
   getCurrentRelease: 'updates:get-current-release',
   getUpdateState: 'updates:get-state',
@@ -31,6 +30,7 @@ let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 function createTray() {
+  if (tray && !tray.isDestroyed()) return;
   tray = new Tray(path.join(__dirname, '../assets/icon.ico'));
   tray.setToolTip('VibeCalendar');
   tray.setContextMenu(Menu.buildFromTemplate([
@@ -79,6 +79,10 @@ function fromTrustedRenderer(handler) {
 function registerIpcHandlers() {
   if (ipcHandlersRegistered) return;
   ipcHandlersRegistered = true;
+  ipcMain.handle(IPC_CHANNELS.hideToTray, fromTrustedRenderer(() => {
+    hideToTray();
+    return { hidden: true };
+  }));
 
   ipcMain.handle(
     IPC_CHANNELS.getVersion,
@@ -150,12 +154,11 @@ function createWindow() {
     height: 500,
     title: 'VibeCalendar', // 品牌名在中英文界面中保持一致
     center: true, // 启动时在屏幕正中央居中显示
-    show: true, // 创建后立即显示，杜绝隐藏等待导致的假死问题
-    alwaysOnTop: true, // 初始启动时强制置顶，确保弹到所有应用窗口最上方
+    show: false, // 首帧准备好即显示，避免空窗口闪烁
     frame: false, // 现代无边框沉浸式窗口
     resizable: false, // 固定尺寸
     icon: path.join(__dirname, '../assets/icon.png'), // 任务栏与窗口使用高清 PNG 图标
-    backgroundColor: '#16161d', // 统一暗夜背景色，杜绝闪烁并提供最佳对比度
+    backgroundColor: '#090d18', // 统一暗夜背景色，杜绝闪烁并提供最佳对比度
     hasShadow: true, // 启用原生窗口投影
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -170,18 +173,18 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event) => event.preventDefault());
 
-  // 页面加载完成后主动聚焦，并在 1.5 秒后解除强制置顶，恢复正常层级
-  mainWindow.webContents.on('did-finish-load', () => {
-    mainWindow.focus();
-    setTimeout(() => {
-      if (!mainWindow.isDestroyed()) {
-        mainWindow.setAlwaysOnTop(false);
-      }
-    }, 1500);
+  const window = mainWindow;
+  window.once('ready-to-show', () => {
+    if (!window.isDestroyed() && !window.hiddenToTray) { window.show(); window.focus(); }
+  });
+  window.webContents.once('did-finish-load', () => {
+    if (!isQuitting && !window.isDestroyed()) {
+      void getUpdater().checkForUpdates(window).catch(error => console.error('后台更新检查失败：', error));
+    }
   });
 
   mainWindow.on('close', (event) => {
-    if (!isQuitting && tray) { event.preventDefault(); mainWindow.hide(); }
+    if (!isQuitting) { event.preventDefault(); hideToTray(); }
   });
   // 加载前端页面
   mainWindow.loadFile(RENDERER_ENTRY_PATH);
@@ -189,9 +192,17 @@ function createWindow() {
   return mainWindow;
 }
 
+function hideToTray() {
+  createTray();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.hiddenToTray = true;
+  mainWindow.hide();
+}
+
 /** 将已经存在的窗口恢复到用户面前，供重复启动和 macOS 激活事件复用。 */
 function revealMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
+  mainWindow.hiddenToTray = false;
   if (mainWindow.isMinimized?.()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
@@ -208,15 +219,7 @@ if (!hasSingleInstanceLock) {
   app.whenReady().then(() => {
     console.log('🚀 Electron app.whenReady 完成，开始创建窗口...');
     registerIpcHandlers();
-    createTray();
-    const createdWindow = createWindow();
-    // 首屏优先：一分钟内不启动更新检查或加载更新库。退出时清理计时器，
-    // unref防止仅剩后台定时器时阻止进程结束。安装能力必须保留在Electron主进程。
-    backgroundTimer = setTimeout(() => {
-      backgroundTimer = null;
-      if (!createdWindow.isDestroyed()) void getUpdater().checkForUpdates(createdWindow);
-    }, 60_000);
-    backgroundTimer.unref?.();
+    createWindow();
 
     // macOS 关闭所有窗口后应用仍可驻留；点击 Dock 图标时重新创建窗口。
     app.on('activate', () => {
@@ -230,5 +233,8 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => { isQuitting = true; clearTimeout(backgroundTimer); });
-app.on('will-quit', () => { tray?.destroy(); tray = null; });
+app.on('before-quit', () => { isQuitting = true; });
+app.on('will-quit', () => { updater?.dispose(); tray?.destroy(); tray = null; });
+
+// Internal lifecycle access for the real Electron integration test. Never exposed to renderer.
+module.exports = { getMainWindow: () => mainWindow, getTray: () => tray, revealMainWindow };

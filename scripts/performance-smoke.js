@@ -21,7 +21,8 @@ async function run() {
     await window.loadFile(path.resolve(__dirname, '../src/renderer/index.html'));
     const startupMs = performance.now() - started;
     const results = await window.webContents.executeJavaScript(`(async () => {
-      await Promise.allSettled([...holidayManager.pendingRequests.values()]);
+      await Promise.allSettled([...holidayManager.pendingRequests.values()].map(task => task.promise || task));
+      holidayManager.dispose?.();
       const empty = Object.freeze({});
       window.holidayManager = { getHolidays: () => empty, fetchHolidays: async () => empty };
       document.getElementById('go-today-btn').click();

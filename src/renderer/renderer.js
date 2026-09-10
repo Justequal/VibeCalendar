@@ -150,12 +150,6 @@
     for (const [id, key] of [['month-picker-title', 'selectMonth'], ['year-label', 'year'], ['month-label', 'month'], ['picker-cancel', 'cancel'], ['picker-apply', 'apply']]) {
       document.getElementById(id).textContent = text[key];
     }
-    elements.pickerMonth.replaceChildren(...Array.from({ length: 12 }, (_, month) => {
-      const option = document.createElement('option');
-      option.value = month;
-      option.textContent = new Intl.DateTimeFormat(state.language, { month: 'long' }).format(CalendarCore.createDate(2026, month, 1));
-      return option;
-    }));
     elements.previousMonth.setAttribute('aria-label', text.previousMonth);
     elements.previousMonth.title = text.previousMonth;
     elements.nextMonth.setAttribute('aria-label', text.nextMonth);
@@ -412,6 +406,13 @@
   function bindEvents() {
     elements.monthYear.addEventListener('click', () => {
       pointerPosition = null;
+      const monthFormatter = new Intl.DateTimeFormat(state.language, { month: 'long' });
+    elements.pickerMonth.replaceChildren(...Array.from({ length: 12 }, (_, month) => {
+      const option = document.createElement('option');
+      option.value = month;
+      option.textContent = monthFormatter.format(CalendarCore.createDate(2026, month, 1));
+      return option;
+    }));
       elements.pickerYear.value = displayedMonth.getFullYear();
       elements.pickerMonth.value = displayedMonth.getMonth();
       elements.monthPicker.showModal();
@@ -458,7 +459,10 @@
 
     elements.previousMonth.addEventListener('click', () => moveMonth(-1));
     elements.nextMonth.addEventListener('click', () => moveMonth(1));
-    elements.close.addEventListener('click', () => window.close());
+    elements.close.addEventListener('click', () => {
+      if (window.appWindow) void window.appWindow.hideToTray().catch(error => console.error('收起到托盘失败：', error));
+      else window.close();
+    });
 
     // 累加器负责“滚了几行”，requestAnimationFrame 负责“何时更新页面”。浏览器
     // 一帧内收到的多次滚轮事件会合并成一次 DOM 重绘，但总滚动幅度完整保留。
@@ -507,13 +511,14 @@
 
   bindEvents();
   scheduleClockTick();
-  renderCalendar();
+  renderCalendarGrid();
   performance.mark('calendar-ready');
   // 日历先完成同步绘制，版本号和更新快照的IPC随后初始化。
   updateController.initialize();
-  const backgroundTimer = setTimeout(() => void renderCalendar(), 60_000);
+  // 首帧绘制后立即调度线程任务，没有固定的启动等待。
+  const backgroundTimer = requestAnimationFrame(() => { void renderCalendar(); });
   window.addEventListener('pagehide', () => {
-    clearTimeout(backgroundTimer);
+    cancelAnimationFrame(backgroundTimer);
     window.holidayManager.dispose?.();
   }, { once: true });
 })();

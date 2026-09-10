@@ -254,7 +254,7 @@ function initializeAutoUpdater(parentWindow) {
   updaterInitialized = true;
   // 下载由本模块在确认版本后显式启动，避免仅检查到新版却没有开始下载。
   autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoInstallOnAppQuit = false; // 安装仅由明确的更新按钮触发，后台进程退出不能触发安装。
   autoUpdater.allowPrerelease = false;
 
   autoUpdater.on('update-available', (info) => {

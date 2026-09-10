@@ -304,12 +304,16 @@ preload → update-controller → renderer
 
 ## 首屏优先与后台线程
 
-启动路径只创建窗口和绘制本地日历。主进程不预加载updater，页面读取更新快照时返回idle；60秒后才加载更新库并检查。用户主动查看本地公告不启动网络检查。
+bootstrap.js区分窗口进程和更新服务进程。窗口进程只加载轻量update-client代理；首帧准备好后显示窗口，页面加载完成即启动独立Electron后台进程。update-service加载updater，负责公告读取、检查、下载与安装，通过受控消息返回状态；进程故障会解除等待并允许下一次请求重启。主应用退出时断开服务连接，服务随之结束。用户点击更新后服务启动安装器并通知主应用退出。
 
-holiday-background.js是轻量代理，用performance.now单调时钟限制启动时间，翻月、focus、online都无法提前创建Worker。首屏读取现有本地缓存，60秒后刷新当前窗口需要的年份。holiday-worker.js在独立Web Worker中复用HolidayService，承担请求、JSON解析、校验、合并和降级；主线程接收冻结快照、写入兼容的localStorage并更新DOM。
+holiday-background.js是轻量代理，不设置启动延迟。首屏读取现有本地缓存，首帧后的回调立即在Worker刷新当前窗口需要的年份。performance.now仅用于线程故障后的重试冷却。holiday-worker.js在独立Web Worker中复用HolidayService，承担请求、JSON解析、校验、合并和降级；主线程接收冻结快照、写入兼容的localStorage并更新DOM。
 
 Worker按需创建，同年任务合并，主线程最多保留6个等待结果，优先最新浏览年份；异常或45秒无结果时终止Worker、释放等待者，30秒冷却后由后续操作重试。页面关闭时终止线程。线程不可用时保留缓存，不回退到界面线程发请求。
 
-Electron更新器依赖主进程API，检查与安装调用保留在主进程，延后加载和异步执行；不能把Promise误称为新线程。真正移入Worker的是节假日后台工作，时钟、DOM和少量本地偏好读取是前台必要工作。
+Electron更新器依赖Electron API，因此使用独立Electron服务进程承载，而不是在普通Node Worker内强行加载。窗口进程只负责托盘、窗口和IPC转发；节假日使用Web Worker。时钟、DOM和少量本地偏好读取是前台必要工作。
 
 性能脚本输出calendarReadyMs（页面导航至网格构造完成），以及Electron窗口加载耗时。二者都不是操作系统冷启动至用户实际看到像素的保证。
+
+### v1.1.27 本机验证
+
+Windows / Electron 44，同一性能脚本的单次对比：日历网格构造完成由130.9ms降至88.4ms；窗口加载由292.0ms变为292.8ms；1000次翻月由362.1ms变为389.9ms。翻月没有测得提速，单次结果会受设备负载影响。此测试隔离真实网络，不代表系统冷启动或更新下载中的完整资源占用。托盘与后台服务通过独立的真实桌面及打包服务回归覆盖。

@@ -20,14 +20,8 @@ function subject() {
   return { manager, worker, local, messages, created: () => created, setTime: value => { time = value; } };
 }
 
-test('前59999毫秒不创建线程，在线恢复和翻年也不能绕过延迟', async () => {
+test('无需等待一分钟，第一次刷新立即创建线程', async () => {
   const s = subject();
-  await s.manager.fetchHolidays(2026);
-  s.setTime(59999);
-  await s.manager.fetchHolidays(2027, { retryFallback: true });
-  assert.equal(s.created(), 0);
-  assert.equal(s.messages.length, 0);
-  s.setTime(60000);
   const pending = s.manager.fetchHolidays(2026);
   assert.equal(s.created(), 1);
   assert.equal(s.messages.length, 1);
