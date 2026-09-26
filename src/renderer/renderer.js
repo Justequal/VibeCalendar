@@ -101,6 +101,7 @@
   const accessibleDateFormatters = new Map();
   const emptyHolidays = Object.freeze({});
   let renderedControlsLanguage;
+  let renderedPickerLanguage;
   let renderedWeekdayKey;
   let renderedGrid;
   let clockDateKey;
@@ -406,13 +407,17 @@
   function bindEvents() {
     elements.monthYear.addEventListener('click', () => {
       pointerPosition = null;
-      const monthFormatter = new Intl.DateTimeFormat(state.language, { month: 'long' });
-    elements.pickerMonth.replaceChildren(...Array.from({ length: 12 }, (_, month) => {
-      const option = document.createElement('option');
-      option.value = month;
-      option.textContent = monthFormatter.format(CalendarCore.createDate(2026, month, 1));
-      return option;
-    }));
+      // 月份名称只随语言变化，重复打开时复用选项，仍每次同步当前年月。
+      if (renderedPickerLanguage !== state.language) {
+        const monthFormatter = new Intl.DateTimeFormat(state.language, { month: 'long' });
+        elements.pickerMonth.replaceChildren(...Array.from({ length: 12 }, (_, month) => {
+          const option = document.createElement('option');
+          option.value = month;
+          option.textContent = monthFormatter.format(CalendarCore.createDate(2026, month, 1));
+          return option;
+        }));
+        renderedPickerLanguage = state.language;
+      }
       elements.pickerYear.value = displayedMonth.getFullYear();
       elements.pickerMonth.value = displayedMonth.getMonth();
       elements.monthPicker.showModal();
