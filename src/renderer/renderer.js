@@ -397,11 +397,17 @@
     clockDateKey = dateKey;
   }
 
-  /** 每次按整秒边界重新调度，避免长期运行后 setInterval 累积漂移。 */
+  let clockTimer;
+  let pageDisposed = false;
+
+  /** 托盘驻留时暂停时钟，恢复后立即校准；始终只保留一个定时器。 */
   function scheduleClockTick() {
+    clearTimeout(clockTimer);
+    clockTimer = undefined;
+    if (pageDisposed || document.hidden) return;
     updateClock();
     const delay = 1000 - (Date.now() % 1000) + 5;
-    setTimeout(scheduleClockTick, delay);
+    clockTimer = setTimeout(scheduleClockTick, delay);
   }
 
   function bindEvents() {
@@ -444,6 +450,7 @@
     };
     window.addEventListener('focus', refreshOnReturn);
     document.addEventListener('visibilitychange', () => {
+      scheduleClockTick();
       if (!document.hidden) refreshOnReturn();
     });
     window.addEventListener('online', () => void renderCalendar({ retryFallback: true }));
@@ -523,6 +530,8 @@
   // 首帧绘制后立即调度线程任务，没有固定的启动等待。
   const backgroundTimer = requestAnimationFrame(() => { void renderCalendar(); });
   window.addEventListener('pagehide', () => {
+    pageDisposed = true;
+    clearTimeout(clockTimer);
     cancelAnimationFrame(backgroundTimer);
     window.holidayManager.dispose?.();
   }, { once: true });
